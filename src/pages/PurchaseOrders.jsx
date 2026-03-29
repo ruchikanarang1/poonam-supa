@@ -22,9 +22,7 @@ export default function PurchaseOrders() {
     const [filter, setFilter] = useState('all');
 
     // Form state
-    const [productName, setProductName] = useState('');
-    const [quantity, setQuantity] = useState('');
-    const [unit, setUnit] = useState('kg');
+    const [items, setItems] = useState([{ productName: '', quantity: '', unit: 'kg' }]);
     const [supplierInput, setSupplierInput] = useState('');
     const [supplierPhone, setSupplierPhone] = useState('');
     const [selectedSupplierId, setSelectedSupplierId] = useState(null);
@@ -82,8 +80,18 @@ export default function PurchaseOrders() {
         setSuggestions([]);
     };
 
+    const addItem = () => setItems([...items, { productName: '', quantity: '', unit: 'kg' }]);
+    const removeItem = (index) => setItems(items.filter((_, i) => i !== index));
+    const updateItem = (index, field, value) => {
+        const next = [...items];
+        next[index][field] = value;
+        setItems(next);
+    };
+
     const buildWhatsAppMessage = (poNumber) => {
         const date = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+        const itemsList = items.map(it => `• *${it.productName}:* ${it.quantity} ${it.unit}`).join('\n');
+
         return encodeURIComponent(
             `Dear ${supplierInput},
 
@@ -94,9 +102,11 @@ This is a formal Purchase Order from *Poonam Steel*.
 *Purchase Order Details:*
 ━━━━━━━━━━━━━━━━━━━━━
 📋 *PO Number:* ${poNumber}
-📦 *Product:* ${productName}
-📊 *Quantity:* ${quantity} ${unit}
 📅 *Date:* ${date}
+
+*Items Required:*
+${itemsList}
+
 ${notes ? `📝 *Notes:* ${notes}` : ''}
 ━━━━━━━━━━━━━━━━━━━━━
 
@@ -115,9 +125,7 @@ Thank you for your continued partnership.
         setSubmitting(true);
         try {
             const docRef = await addPurchaseOrder({
-                productName,
-                quantity: Number(quantity),
-                unit,
+                items,
                 supplierName: supplierInput,
                 supplierPhone,
                 supplierId: selectedSupplierId,
@@ -139,7 +147,7 @@ Thank you for your continued partnership.
             window.open(waUrl, '_blank');
 
             // Reset & reload
-            setProductName(''); setQuantity(''); setUnit('kg');
+            setItems([{ productName: '', quantity: '', unit: 'kg' }]);
             setSupplierInput(''); setSupplierPhone(''); setNotes('');
             setSelectedSupplierId(null);
             setShowModal(false);
@@ -231,8 +239,20 @@ Thank you for your continued partnership.
                                                 {s.icon} {s.label}
                                             </span>
                                         </div>
-                                        <strong style={{ fontSize: '1rem' }}>{order.productName}</strong>
-                                        <span style={{ color: 'gray', marginLeft: '0.5rem', fontSize: '0.9rem' }}>{order.quantity} {order.unit}</span>
+                                        {order.items ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                                {order.items.map((it, idx) => (
+                                                    <div key={idx} style={{ fontSize: '0.9rem' }}>
+                                                        <strong>• {it.productName}</strong>: {it.quantity} {it.unit}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <strong style={{ fontSize: '1rem' }}>{order.productName}</strong>
+                                                <span style={{ color: 'gray', marginLeft: '0.5rem', fontSize: '0.9rem' }}>{order.quantity} {order.unit}</span>
+                                            </>
+                                        )}
                                     </div>
                                     <div style={{ textAlign: 'right', fontSize: '0.85rem', color: 'gray' }}>
                                         <div style={{ fontWeight: '500', color: 'var(--color-text)' }}>📞 {order.supplierName}</div>
@@ -277,25 +297,61 @@ Thank you for your continued partnership.
                             <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'gray' }}>×</button>
                         </div>
 
-                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {/* Product */}
-                            <div>
-                                <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>Product Name <span style={{ color: 'red' }}>*</span></label>
-                                <input className="input-field" placeholder="e.g. TMT Bar 12mm" value={productName} onChange={e => setProductName(e.target.value)} required />
-                            </div>
+                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            {/* Items List */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <label style={{ fontWeight: 'bold', fontSize: '1rem', color: 'var(--color-text)' }}>Order Items</label>
+                                    <button type="button" onClick={addItem} className="btn btn-outline" style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                                        <Plus size={14} /> Add Product
+                                    </button>
+                                </div>
 
-                            {/* Quantity + Unit */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
-                                <div>
-                                    <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>Quantity <span style={{ color: 'red' }}>*</span></label>
-                                    <input className="input-field" type="number" min="1" placeholder="e.g. 500" value={quantity} onChange={e => setQuantity(e.target.value)} required />
-                                </div>
-                                <div>
-                                    <label style={{ fontWeight: 'bold', fontSize: '0.9rem', display: 'block', marginBottom: '0.25rem' }}>Unit</label>
-                                    <select className="input-field" value={unit} onChange={e => setUnit(e.target.value)}>
-                                        {['kg', 'MT', 'pieces', 'bundles', 'coils', 'sheets', 'meters'].map(u => <option key={u}>{u}</option>)}
-                                    </select>
-                                </div>
+                                {items.map((item, idx) => (
+                                    <div key={idx} style={{ padding: '1rem', background: '#f8f9fa', borderRadius: '10px', border: '1px solid #e9ecef', position: 'relative' }}>
+                                        {items.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeItem(idx)}
+                                                style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'none', border: 'none', cursor: 'pointer', color: '#dc3545', fontSize: '1.2rem' }}
+                                            >
+                                                ×
+                                            </button>
+                                        )}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '0.75rem' }}>
+                                            <div>
+                                                <label style={{ fontSize: '0.8rem', color: 'gray', display: 'block', marginBottom: '0.25rem' }}>Product Name</label>
+                                                <input
+                                                    className="input-field"
+                                                    style={{ background: 'white' }}
+                                                    placeholder="e.g. TMT 12mm"
+                                                    value={item.productName}
+                                                    onChange={e => updateItem(idx, 'productName', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.8rem', color: 'gray', display: 'block', marginBottom: '0.25rem' }}>Qty</label>
+                                                <input
+                                                    className="input-field"
+                                                    style={{ background: 'white' }}
+                                                    type="number"
+                                                    min="1"
+                                                    placeholder="500"
+                                                    value={item.quantity}
+                                                    onChange={e => updateItem(idx, 'quantity', e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '0.8rem', color: 'gray', display: 'block', marginBottom: '0.25rem' }}>Unit</label>
+                                                <select className="input-field" style={{ background: 'white' }} value={item.unit} onChange={e => updateItem(idx, 'unit', e.target.value)}>
+                                                    {['kg', 'MT', 'pieces', 'bundles', 'coils', 'sheets', 'meters'].map(u => <option key={u}>{u}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
 
                             {/* Supplier Autocomplete */}
