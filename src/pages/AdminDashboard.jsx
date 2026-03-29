@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getProducts, addProduct, updateProduct, deleteProduct, getOrders, uploadImage, addBulkProducts } from '../lib/db';
 import { Trash2, Edit3, Plus, UploadCloud, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import TeamManagement from '../components/admin/TeamManagement';
+import FormBuilder from '../components/admin/FormBuilder';
+import Reconciliation from '../components/admin/Reconciliation';
+import TicketBuilder from '../components/admin/TicketBuilder';
+import TicketReviews from '../components/admin/TicketReviews';
+import SupplierManager from '../components/admin/SupplierManager';
+import AdminOverview from '../components/admin/AdminOverview';
 
 export default function AdminDashboard() {
     const { isAdmin, loginForAdminExport } = useAuth();
-    const [activeTab, setActiveTab] = useState('products');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = searchParams.get('tab') || 'overview';
+    const setActiveTab = (tab) => setSearchParams({ tab });
 
     const [products, setProducts] = useState([]);
     const [orders, setOrders] = useState([]);
@@ -350,15 +360,7 @@ export default function AdminDashboard() {
                 )}
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: 'var(--spacing-md)', marginBottom: 'var(--spacing-lg)' }}>
-                <button className={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('products')}>
-                    Manage Products
-                </button>
-                <button className={`btn ${activeTab === 'orders' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setActiveTab('orders')}>
-                    View Orders
-                </button>
-            </div>
+
 
             {loading || uploading ? <p>{uploading ? "Processing..." : "Loading data..."}</p> : (
                 <>
@@ -488,6 +490,14 @@ export default function AdminDashboard() {
                             )}
                         </div>
                     )}
+
+                    {activeTab === 'overview' && <AdminOverview />}
+                    {activeTab === 'team' && <TeamManagement />}
+                    {activeTab === 'forms' && <FormBuilder />}
+                    {activeTab === 'reconciliation' && <Reconciliation />}
+                    {activeTab === 'ticket_builder' && <TicketBuilder />}
+                    {activeTab === 'ticket_reviews' && <TicketReviews />}
+                    {activeTab === 'suppliers' && <SupplierManager />}
                 </>
             )}
         </div>

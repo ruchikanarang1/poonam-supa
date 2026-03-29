@@ -65,8 +65,9 @@ export function AuthProvider({ children }) {
                     const userDoc = await getDoc(doc(db, 'users', user.uid));
                     if (userDoc.exists()) {
                         const data = userDoc.data();
+                        data.roles = data.roles || [];
                         setUserData(data);
-                        setIsAdmin(data.role === 'admin');
+                        setIsAdmin(data.role === 'admin' || data.roles.includes('admin'));
                     } else {
                         setUserData(null);
                         setIsAdmin(false);

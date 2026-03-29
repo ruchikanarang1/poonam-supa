@@ -11,6 +11,8 @@ export default function Cart() {
     const [employeeRef, setEmployeeRef] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [orderSuccess, setOrderSuccess] = useState(false);
+    // Local string state: lets user freely type a qty, only commits to cart on blur
+    const [inputValues, setInputValues] = useState({});
 
     const handleCheckout = async (e) => {
         e.preventDefault();
@@ -71,14 +73,31 @@ export default function Cart() {
                                     </div>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={item.quantity}
-                                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                                            className="input-field"
-                                            style={{ width: '80px', padding: '0.25rem 0.5rem' }}
-                                        />
+                                        {/* +/- Stepper */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <button
+                                                onClick={() => item.quantity <= 1 ? removeFromCart(item.id) : updateQuantity(item.id, item.quantity - 1)}
+                                                style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #333', background: 'white', color: '#333', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            >−</button>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                value={inputValues[item.id] !== undefined ? inputValues[item.id] : item.quantity}
+                                                onFocus={() => setInputValues(v => ({ ...v, [item.id]: String(item.quantity) }))}
+                                                onChange={e => setInputValues(v => ({ ...v, [item.id]: e.target.value }))}
+                                                onBlur={e => {
+                                                    const v = parseInt(e.target.value);
+                                                    if (!isNaN(v) && v >= 1) updateQuantity(item.id, v);
+                                                    else updateQuantity(item.id, 1);
+                                                    setInputValues(v => { const n = { ...v }; delete n[item.id]; return n; });
+                                                }}
+                                                style={{ width: '48px', textAlign: 'center', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px', padding: '2px 4px' }}
+                                            />
+                                            <button
+                                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                style={{ width: '32px', height: '32px', borderRadius: '50%', border: '2px solid #333', background: '#333', color: 'white', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                            >+</button>
+                                        </div>
                                         <button
                                             onClick={() => removeFromCart(item.id)}
                                             style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }}

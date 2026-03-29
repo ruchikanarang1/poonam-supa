@@ -5,8 +5,9 @@ import { useCart } from '../contexts/CartContext';
 import { ShoppingCart, User, LogOut, LayoutDashboard } from 'lucide-react';
 
 export default function Navbar() {
-    const { currentUser, isAdmin, loginWithGoogle, logout } = useAuth();
+    const { currentUser, userData, isAdmin, loginWithGoogle, logout } = useAuth();
     const { cartCount } = useCart();
+    const roles = userData?.roles || [];
 
     return (
         <nav style={{ background: 'var(--color-primary)', boxShadow: 'var(--shadow-sm)', padding: 'var(--spacing-md) 0' }}>
@@ -35,15 +36,10 @@ export default function Navbar() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginLeft: 'var(--spacing-lg)' }}>
                         {currentUser ? (
                             <>
-                                {isAdmin && (
-                                    <Link to="/admin" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--color-accent-blue)' }}>
-                                        <LayoutDashboard size={18} /> Admin
-                                    </Link>
-                                )}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: 'var(--color-text-light)' }}>
                                     <User size={18} /> {currentUser.displayName?.split(' ')[0]}
                                 </div>
-                                <button onClick={logout} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
+                                <button onClick={logout} className="btn btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem', marginLeft: '0.5rem' }}>
                                     <LogOut size={16} />
                                 </button>
                             </>
