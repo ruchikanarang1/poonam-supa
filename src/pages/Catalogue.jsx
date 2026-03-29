@@ -61,10 +61,10 @@ export default function Catalogue() {
 
     return (
         <div className="container" style={{ padding: 'var(--spacing-xl) 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+            <div className="stack-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
                 <h1 style={{ color: 'var(--color-accent-blue)' }}>Product Catalogue</h1>
-                <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-                    <div className="input-group" style={{ marginBottom: 0, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: '0 0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+                <div className="stack-on-mobile" style={{ display: 'flex', gap: 'var(--spacing-sm)', width: 'auto' }}>
+                    <div className="input-group full-width-on-mobile" style={{ marginBottom: 0, flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', padding: '0 0.5rem', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
                         <Search size={18} color="var(--color-text-light)" />
                         <input
                             type="text"
@@ -72,48 +72,52 @@ export default function Catalogue() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             className="input-field"
-                            style={{ border: 'none', padding: '0.5rem', width: '200px' }}
+                            style={{ border: 'none', padding: '0.5rem', width: '100%', minWidth: '150px' }}
                         />
                     </div>
-                    <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: '150px' }}>
+                    <select className="input-field full-width-on-mobile" value={category} onChange={(e) => setCategory(e.target.value)} style={{ width: 'auto', minWidth: '150px' }}>
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
             </div>
 
             {loading ? <p>Loading catalogue...</p> : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--spacing-lg)' }}>
+                <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: window.innerWidth <= 768 ? '1fr 1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', 
+                    gap: window.innerWidth <= 768 ? 'var(--spacing-sm)' : 'var(--spacing-lg)' 
+                }}>
                     {filteredProducts.map(product => {
                         const inCart = cartQtyFor(product.id);
                         return (
                             <div key={product.id} className="card" style={{ display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
                                 {/* Image */}
-                                <div style={{ height: '200px', backgroundColor: 'var(--color-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div style={{ height: window.innerWidth <= 768 ? '140px' : '200px', backgroundColor: 'var(--color-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     {product.imageUrl
                                         ? <img src={product.imageUrl} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        : <span style={{ color: 'var(--color-text-light)' }}>No Image Available</span>}
+                                        : <span style={{ color: 'var(--color-text-light)', fontSize: '0.7rem', textAlign: 'center', padding: '0.5rem' }}>No Image Available</span>}
                                 </div>
 
                                 {/* Details */}
-                                <div style={{ padding: 'var(--spacing-md)', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                                    <div style={{ padding: '0.25rem 0.5rem', backgroundColor: 'var(--color-secondary)', borderRadius: '4px', marginBottom: 'var(--spacing-sm)', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--color-text-light)', alignSelf: 'flex-start' }}>
+                                <div style={{ padding: window.innerWidth <= 768 ? 'var(--spacing-sm)' : 'var(--spacing-md)', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                    <div style={{ padding: '0.2rem 0.4rem', backgroundColor: 'var(--color-secondary)', borderRadius: '4px', marginBottom: '0.25rem', fontSize: '0.65rem', fontWeight: 'bold', color: 'var(--color-text-light)', alignSelf: 'flex-start' }}>
                                         {product.category}
                                     </div>
-                                    <h3 style={{ marginBottom: '0.5rem', color: 'var(--color-accent-blue)' }}>{product.name}</h3>
-                                    <p style={{ fontSize: '0.9rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>{product.description}</p>
-                                    <div style={{ marginBottom: 'var(--spacing-md)', fontSize: '0.85rem' }}>
-                                        <strong>Dimensions:</strong> {product.dimensions || 'N/A'}
+                                    <h3 style={{ marginBottom: '0.25rem', color: 'var(--color-accent-blue)', fontSize: window.innerWidth <= 768 ? '0.9rem' : '1.1rem', lineHeight: '1.2' }}>{product.name}</h3>
+                                    <p className="hide-on-mobile" style={{ fontSize: '0.8rem', color: 'var(--color-text-light)', marginBottom: '0.5rem' }}>{product.description}</p>
+                                    <div style={{ marginBottom: 'var(--spacing-sm)', fontSize: window.innerWidth <= 768 ? '0.7rem' : '0.85rem' }}>
+                                        <strong>Dims:</strong> {product.dimensions || 'N/A'}
                                     </div>
 
                                     {/* Price + Cart CTA */}
-                                    <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontWeight: '600', fontSize: '1.1rem', color: 'var(--color-accent-orange)' }}>
+                                    <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <span style={{ fontWeight: '700', fontSize: window.innerWidth <= 768 ? '0.9rem' : '1.1rem', color: 'var(--color-accent-orange)' }}>
                                             {product.price ? `₹${product.price}/kg` : 'Price on Request'}
                                         </span>
 
                                         {inCart > 0 ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <button style={{ ...stepperBtnBase, background: 'white', color: '#333' }} onClick={() => handleDecrease(product)}>−</button>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}>
+                                                <button style={{ ...stepperBtnBase, width: '24px', height: '24px', fontSize: '0.9rem', background: 'white', color: '#333' }} onClick={() => handleDecrease(product)}>−</button>
                                                 <input
                                                     type="number"
                                                     min="1"
@@ -126,13 +130,13 @@ export default function Catalogue() {
                                                         else updateQuantity(product.id, 1);
                                                         setInputValues(v => { const n = { ...v }; delete n[product.id]; return n; });
                                                     }}
-                                                    style={{ width: '44px', textAlign: 'center', fontWeight: 'bold', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px', padding: '2px 4px' }}
+                                                    style={{ width: '36px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.85rem', border: '1px solid #ccc', borderRadius: '4px', padding: '2px' }}
                                                 />
-                                                <button style={{ ...stepperBtnBase, background: '#333', color: 'white' }} onClick={() => handleIncrease(product)}>+</button>
+                                                <button style={{ ...stepperBtnBase, width: '24px', height: '24px', fontSize: '0.9rem', background: '#333', color: 'white' }} onClick={() => handleIncrease(product)}>+</button>
                                             </div>
                                         ) : (
-                                            <button className="btn btn-primary" onClick={() => handleAdd(product)}>
-                                                {product.price ? 'Add to Cart' : 'Request Quote'}
+                                            <button className="btn btn-primary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem', width: '100%' }} onClick={() => handleAdd(product)}>
+                                                {product.price ? 'Add' : 'Quote'}
                                             </button>
                                         )}
                                     </div>

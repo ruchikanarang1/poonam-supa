@@ -100,14 +100,14 @@ export default function TicketsPortal() {
 
     return (
         <div className="container" style={{ padding: 'var(--spacing-xl) 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
+            <div className="stack-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-xl)' }}>
                 <div>
                     <h2 style={{ color: 'var(--color-accent-blue)', margin: 0 }}>My Tickets</h2>
                     <p style={{ margin: '0.25rem 0 0', color: 'gray', fontSize: '0.9rem' }}>
                         {isAdmin ? 'Viewing all submitted tickets.' : 'Raise and track your internal support tickets here.'}
                     </p>
                 </div>
-                <button className="btn btn-primary" onClick={openModal} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button className="btn btn-primary full-width-on-mobile" onClick={openModal} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <Plus size={18} /> Raise New Ticket
                 </button>
             </div>

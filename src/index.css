@@ -142,3 +142,114 @@ ul {
   outline: none;
   border-color: var(--color-accent-blue);
 }
+/* Responsive Design Breakpoints */
+.show-on-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --spacing-lg: 1rem;
+    --spacing-xl: 1.5rem;
+  }
+
+  .container {
+    padding: 0 var(--spacing-sm);
+  }
+
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  .show-on-mobile {
+    display: flex !important;
+  }
+
+  .stack-on-mobile {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: var(--spacing-md) !important;
+  }
+
+  .full-width-on-mobile {
+    width: 100% !important;
+  }
+
+  /* Adjust typography for mobile */
+  h1 { font-size: 1.75rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+}
+
+/* Base Utility Classes */
+.flex-column { display: flex; flex-direction: column; }
+.flex-row { display: flex; flex-direction: row; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-md { gap: var(--spacing-md); }
+.gap-lg { gap: var(--spacing-lg); }
+
+/* Main Layout Classes */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  position: relative;
+}
+
+.content-area {
+  flex: 1;
+  padding: var(--spacing-md);
+  transition: margin-left 0.3s ease;
+}
+
+/* Sidebar Responsive Styles */
+.sidebar {
+  width: 245px;
+  flex-shrink: 0;
+  background: #fafafa;
+  border-right: 1px solid #e8eaed;
+  padding: 1rem 0.5rem;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 70px);
+  overflow-y: auto;
+  transition: transform 0.3s ease, width 0.3s ease;
+  z-index: 1000;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 60px; /* Adjust based on navbar height */
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .content-area {
+    padding: var(--spacing-sm);
+  }
+}
+
+/* Table responsiveness */
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.responsive-table {
+  width: 100%;
+  min-width: 600px;
+}

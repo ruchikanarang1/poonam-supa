@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import Navbar from './components/Navbar';
@@ -11,13 +12,29 @@ import TicketsPortal from './pages/TicketsPortal';
 import PurchaseOrders from './pages/PurchaseOrders';
 
 function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
+
   return (
     <Router>
-      <div className="app-container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <Navbar />
-        <div style={{ display: 'flex', flex: 1 }}>
-          <Sidebar />
-          <main style={{ flex: 1, padding: '1rem' }}>
+      <div className="app-container">
+        <Navbar toggleSidebar={toggleSidebar} />
+        <div className="main-layout">
+          <Sidebar isOpen={isSidebarOpen} closeSidebar={closeSidebar} />
+          {/* Overlay for mobile sidebar */}
+          {isSidebarOpen && (
+            <div 
+              style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 999
+              }} 
+              onClick={closeSidebar}
+              className="mobile-overlay"
+            />
+          )}
+          <main className="content-area">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/catalogue" element={<Catalogue />} />

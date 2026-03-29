@@ -112,8 +112,8 @@ export default function LogisticsPortal({ type, title }) {
     return (
         <div className="container" style={{ padding: 'var(--spacing-xl) 0', maxWidth: '800px' }}>
             <div className="card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: 'var(--spacing-lg)', borderBottom: '2px solid var(--color-border)', paddingBottom: '1rem' }}>
-                    <div style={{ background: 'var(--color-primary)', padding: '0.75rem', borderRadius: '50%', color: 'white' }}>
+                <div className="stack-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: 'var(--spacing-lg)', borderBottom: '2px solid var(--color-border)', paddingBottom: '1rem' }}>
+                    <div style={{ background: 'var(--color-primary)', padding: '0.75rem', borderRadius: '50%', color: 'white', display: 'flex' }}>
                         <Icon size={28} />
                     </div>
                     <div>

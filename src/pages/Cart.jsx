@@ -61,18 +61,18 @@ export default function Cart() {
             {cartItems.length === 0 ? (
                 <p>Your cart is empty.</p>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--spacing-lg)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '2fr 1fr', gap: 'var(--spacing-lg)' }}>
                     {/* Cart Items */}
                     <div>
                         <div className="card" style={{ padding: 0 }}>
                             {cartItems.map((item, index) => (
-                                <div key={item.id} style={{ display: 'flex', alignItems: 'center', padding: 'var(--spacing-md)', borderBottom: index !== cartItems.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
+                                <div key={item.id} className="stack-on-mobile" style={{ display: 'flex', alignItems: 'center', padding: 'var(--spacing-md)', borderBottom: index !== cartItems.length - 1 ? '1px solid var(--color-border)' : 'none' }}>
                                     <div style={{ flex: 1 }}>
                                         <h4 style={{ color: 'var(--color-accent-blue)' }}>{item.name}</h4>
                                         <p style={{ fontSize: '0.85rem', color: 'var(--color-text-light)' }}>{item.category} | {item.dimensions}</p>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)', width: window.innerWidth <= 768 ? '100%' : 'auto', justifyContent: 'space-between' }}>
                                         {/* +/- Stepper */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                             <button
@@ -100,15 +100,15 @@ export default function Cart() {
                                         </div>
                                         <button
                                             onClick={() => removeFromCart(item.id)}
-                                            style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer' }}
+                                            style={{ background: 'none', border: 'none', color: '#ff4444', cursor: 'pointer', padding: '0.5rem' }}
                                         >
-                                            <Trash2 size={20} />
+                                            <Trash2 size={24} />
                                         </button>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <button className="btn btn-outline" style={{ marginTop: 'var(--spacing-md)' }} onClick={clearCart}>
+                        <button className="btn btn-outline full-width-on-mobile" style={{ marginTop: 'var(--spacing-md)' }} onClick={clearCart}>
                             Clear Cart
                         </button>
                     </div>
@@ -125,23 +125,21 @@ export default function Cart() {
 
                             <form onSubmit={handleCheckout}>
                                 <div className="input-group">
-                                    <label>Employee Reference Code *</label>
+                                    <label>Reference Code *</label>
                                     <input
                                         type="text"
                                         className="input-field"
                                         required
                                         value={employeeRef}
                                         onChange={(e) => setEmployeeRef(e.target.value)}
-                                        placeholder="e.g. EMP-1234"
+                                        placeholder="e.g. REF-1234"
                                     />
                                 </div>
 
-                                {currentUser ? (
+                                {currentUser && (
                                     <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 'var(--spacing-sm)' }} disabled={isSubmitting}>
-                                        {isSubmitting ? 'Submitting...' : 'Submit Order to Admin'}
+                                        {isSubmitting ? 'Submitting...' : 'Confirm Order'}
                                     </button>
-                                ) : (
-                                    <p style={{ color: 'var(--color-accent-orange)', fontSize: '0.9rem', textAlign: 'center' }}>Please login to place an order</p>
                                 )}
                             </form>
                         </div>

@@ -337,12 +337,12 @@ export default function AdminDashboard() {
 
     return (
         <div className="container" style={{ padding: 'var(--spacing-xl) 0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+            <div className="stack-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
                 <h1 style={{ color: 'var(--color-accent-blue)' }}>System Administration</h1>
 
                 {/* Bulk Upload Button */}
                 {activeTab === 'products' && (
-                    <div>
+                    <div className="full-width-on-mobile">
                         <input
                             type="file"
                             accept=".csv, .xlsx, .xls"
@@ -350,10 +350,10 @@ export default function AdminDashboard() {
                             style={{ display: 'none' }}
                             onChange={handleBulkUpload}
                         />
-                        <label htmlFor="csvUpload" className="btn btn-secondary" style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer' }}>
+                        <label htmlFor="csvUpload" className="btn btn-secondary full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer' }}>
                             <UploadCloud size={18} /> Bulk Import Excel / CSV
                         </label>
-                        <p style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginTop: '0.25rem', textAlign: 'right' }}>
+                        <p className="hide-on-mobile" style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginTop: '0.25rem', textAlign: 'right' }}>
                             Format: name,category,description,dimensions,price
                         </p>
                     </div>
@@ -365,7 +365,7 @@ export default function AdminDashboard() {
             {loading || uploading ? <p>{uploading ? "Processing..." : "Loading data..."}</p> : (
                 <>
                     {activeTab === 'products' && (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--spacing-xl)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '1fr 2fr', gap: 'var(--spacing-xl)' }}>
 
                             <div className="card" style={{ height: 'fit-content' }}>
                                 <h3 style={{ marginBottom: 'var(--spacing-md)', color: 'var(--color-accent-blue)' }}>
@@ -419,40 +419,42 @@ export default function AdminDashboard() {
                                         </button>
                                     </div>
                                 </div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                                            <th style={{ padding: '0.5rem', width: '30px' }}>
-                                                <input type="checkbox" onChange={handleSelectAll} checked={products.length > 0 && selectedIds.size === products.length} />
-                                            </th>
-                                            <th style={{ padding: '0.5rem' }}>Image</th>
-                                            <th style={{ padding: '0.5rem' }}>Name</th>
-                                            <th style={{ padding: '0.5rem' }}>Category</th>
-                                            <th style={{ padding: '0.5rem' }}>Price</th>
-                                            <th style={{ padding: '0.5rem', textAlign: 'right' }}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {products.map(p => (
-                                            <tr key={p.id} style={{ borderBottom: '1px solid var(--color-secondary)' }}>
-                                                <td style={{ padding: '0.75rem 0.5rem' }}>
-                                                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} />
-                                                </td>
-                                                <td style={{ padding: '0.75rem 0.5rem' }}>
-                                                    {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} /> : <div style={{ width: '40px', height: '40px', backgroundColor: '#eee', borderRadius: '4px' }}></div>}
-                                                </td>
-                                                <td style={{ padding: '0.75rem 0.5rem' }}>{p.name} <br /><small style={{ color: 'var(--color-text-light)' }}>{p.dimensions}</small></td>
-                                                <td style={{ padding: '0.75rem 0.5rem' }}>{p.category}</td>
-                                                <td style={{ padding: '0.75rem 0.5rem' }}>{p.price ? `₹${p.price}` : 'N/A'}</td>
-                                                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                                                    <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent-blue)' }}><Edit3 size={18} /></button>
-                                                    <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4444' }}><Trash2 size={18} /></button>
-                                                </td>
+                                <div className="table-container">
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+                                        <thead>
+                                            <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                                                <th style={{ padding: '0.5rem', width: '30px' }}>
+                                                    <input type="checkbox" onChange={handleSelectAll} checked={products.length > 0 && selectedIds.size === products.length} />
+                                                </th>
+                                                <th style={{ padding: '0.5rem' }}>Image</th>
+                                                <th style={{ padding: '0.5rem' }}>Name</th>
+                                                <th style={{ padding: '0.5rem' }}>Category</th>
+                                                <th style={{ padding: '0.5rem' }}>Price</th>
+                                                <th style={{ padding: '0.5rem', textAlign: 'right' }}>Actions</th>
                                             </tr>
-                                        ))}
-                                        {products.length === 0 && <tr><td colSpan="6" style={{ padding: '1rem', textAlign: 'center' }}>No products available.</td></tr>}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {products.map(p => (
+                                                <tr key={p.id} style={{ borderBottom: '1px solid var(--color-secondary)' }}>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                                                        <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} />
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                                                        {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} /> : <div style={{ width: '40px', height: '40px', backgroundColor: '#eee', borderRadius: '4px' }}></div>}
+                                                    </td>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>{p.name} <br /><small style={{ color: 'var(--color-text-light)' }}>{p.dimensions}</small></td>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>{p.category}</td>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>{p.price ? `₹${p.price}` : 'N/A'}</td>
+                                                    <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+                                                        <button onClick={() => handleEdit(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent-blue)' }}><Edit3 size={18} /></button>
+                                                        <button onClick={() => handleDelete(p.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4444' }}><Trash2 size={18} /></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {products.length === 0 && <tr><td colSpan="6" style={{ padding: '1rem', textAlign: 'center' }}>No products available.</td></tr>}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                         </div>

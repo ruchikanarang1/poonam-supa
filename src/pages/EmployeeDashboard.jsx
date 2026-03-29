@@ -54,7 +54,7 @@ export default function EmployeeDashboard() {
     });
 
     return (
-        <div style={{ padding: '2.5rem 2rem' }}>
+        <div className="container" style={{ padding: 'var(--spacing-lg) 0' }}>
             {/* Greeting */}
             <div style={{ marginBottom: '2.5rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--color-accent-blue)' }}>
@@ -110,8 +110,7 @@ export default function EmployeeDashboard() {
                 </div>
             )}
 
-            {/* Org Updates Section for Employees (Read Only) */}
-            <div style={{ marginTop: '2.5rem', maxWidth: '800px' }}>
+            <div style={{ marginTop: 'var(--spacing-lg)', maxWidth: '800px' }}>
                 <OrgUpdates readOnly={true} />
             </div>
         </div>
