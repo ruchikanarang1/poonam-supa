@@ -20,8 +20,7 @@ export default function Navbar() {
 
                 {/* Navigation Links */}
                 <div style={{ display: 'flex', gap: 'var(--spacing-lg)', alignItems: 'center' }}>
-                    <Link to="/" style={{ fontWeight: '500' }}>Home</Link>
-                    <Link to="/catalogue" style={{ fontWeight: '500' }}>Catalogue</Link>
+                    <Link to="/" style={{ fontWeight: '500' }}>Catalogue</Link>
 
                     <Link to="/cart" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', position: 'relative' }}>
                         <ShoppingCart size={20} />
