@@ -19,6 +19,7 @@ export default function GoodsCheckIn() {
     const [transportEntries, setTransportEntries] = useState([]);
     const [globalUnits, setGlobalUnits] = useState([]);
     const [registry, setRegistry] = useState([]);
+    const [history, setHistory] = useState([]);
 
     // Form State
     const [lrNumber, setLrNumber] = useState('');
@@ -35,18 +36,23 @@ export default function GoodsCheckIn() {
     const loadInitialData = async () => {
         setLoading(true);
         try {
-            const [sups, pos, transports, units, reg] = await Promise.all([
+            const [sups, pos, transports, units, reg, checkins] = await Promise.all([
                 getSuppliers(currentCompanyId),
                 getPurchaseOrders(currentCompanyId),
                 getLogisticsEntries(currentCompanyId, 'transport'),
                 getGlobalUnits(currentCompanyId),
-                getVendorBrandRegistry(currentCompanyId)
+                getVendorBrandRegistry(currentCompanyId),
+                (await import('../lib/db')).getGoodsCheckInEntries(currentCompanyId)
             ]);
             setSuppliers(sups);
             setPurchaseOrders(pos.filter(p => p.status !== 'received'));
             setTransportEntries(transports.filter(t => t.opened));
             setGlobalUnits(units);
             setRegistry(reg);
+            
+            // Filter for today's check-ins
+            const today = new Date().toISOString().split('T')[0];
+            setHistory(checkins.filter(c => c.createdAt && c.createdAt.startsWith(today)).reverse());
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
@@ -338,18 +344,60 @@ export default function GoodsCheckIn() {
                 </button>
             </div>
 
-            {/* Matched PO Summary Alert */}
-            {matchedPOs.length > 0 && (
-                <div style={{ marginTop: '1.5rem', background: '#f0fdf4', border: '1px solid #dcfce7', padding: '1rem', borderRadius: '8px', display: 'flex', gap: '0.75rem' }}>
-                    <div style={{ color: '#16a34a' }}><CheckCircle size={20} /></div>
-                    <div>
-                        <h4 style={{ margin: 0, color: '#166534', fontSize: '0.9rem' }}>Matching Purchase Orders Detected</h4>
-                        <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: '#15803d' }}>
-                            The brand(s) detected match {matchedPOs.length} open POs. These will be marked as reconcilable.
-                        </p>
+            {/* Daily Check-In History Ledger */}
+            <div className="saas-ledger-card" style={{ marginTop: '2rem' }}>
+                <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--color-border)', background: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Package size={18} style={{ color: 'var(--color-accent-blue)' }} />
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 700, margin: 0, color: 'var(--color-accent-blue)' }}>Today's Check-In Ledger</h3>
                     </div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>{history.length} RECORDS FOUND</div>
                 </div>
-            )}
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '2px solid var(--color-border)' }}>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 800 }}>LR #</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 800 }}>Items Received</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 800 }}>Matched POs</th>
+                                <th style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800 }}>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {history.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontStyle: 'italic' }}>
+                                        No check-ins recorded today.
+                                    </td>
+                                </tr>
+                            ) : (
+                                history.map(entry => (
+                                    <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-accent-blue)' }}>{entry.lrNumber || 'N/A'}</td>
+                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                            {entry.items?.map((it, idx) => (
+                                                <div key={idx} style={{ fontSize: '0.75rem', marginBottom: '2px' }}>
+                                                    <strong>{it.quantity} {it.unit}</strong> — {it.brandName} {it.productName}
+                                                </div>
+                                            ))}
+                                        </td>
+                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                            {entry.matchedPOs?.map(po => (
+                                                <span key={po} style={{ display: 'inline-block', background: '#f0fdf4', color: '#166534', padding: '1px 6px', borderRadius: '4px', fontSize: '0.65rem', border: '1px solid #dcfce7', marginRight: '4px' }}>
+                                                    {po}
+                                                </span>
+                                            ))}
+                                        </td>
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b', fontSize: '0.75rem' }}>
+                                            {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 }

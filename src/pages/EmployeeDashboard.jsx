@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Truck, FileText, TicketCheck, ShoppingBag } from 'lucide-react';
+import { Truck, FileText, TicketCheck, ShoppingBag, ChevronRight } from 'lucide-react';
 import OrgUpdates from '../components/OrgUpdates';
 
 const ACTION_CARDS = [
@@ -56,13 +56,74 @@ export default function EmployeeDashboard() {
     return (
         <div className="container" style={{ padding: 'var(--spacing-lg) 0' }}>
             {/* Greeting */}
-            <div style={{ marginBottom: '2.5rem' }}>
+            <div style={{ marginBottom: '1.5rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.6rem', color: 'var(--color-accent-blue)' }}>
                     👋 Hello, {displayName}!
                 </h2>
                 <p style={{ margin: '0.4rem 0 0', color: 'gray', fontSize: '1rem' }}>
                     What would you like to do today?
                 </p>
+            </div>
+
+            {/* Top Grid - Incoming Goods + 2 Placeholders */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
+                {/* Incoming Goods Card */}
+                <div style={{
+                    background: 'white', border: '1px solid var(--color-border)', borderRadius: '14px',
+                    padding: '1.5rem', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', gap: '1rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: 'var(--color-accent-blue)' }}>
+                        <div style={{ background: '#e8f0fe', padding: '0.6rem', borderRadius: '10px' }}><Truck size={24} /></div>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>Incoming Goods</h3>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        <Link to="/transport" style={{ 
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '0.75rem 1rem', background: '#f8f9fa', borderRadius: '8px', 
+                            fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-text-main)', 
+                            border: '1px solid transparent', transition: 'all 0.2s'
+                        }} onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent-orange)'; e.currentTarget.style.color = 'var(--color-accent-orange)'; }} 
+                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--color-text-main)'; }}>
+                            Transport Entry <ChevronRight size={16} />
+                        </Link>
+                        <Link to="/bills" style={{ 
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '0.75rem 1rem', background: '#f8f9fa', borderRadius: '8px', 
+                            fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-text-main)', 
+                            border: '1px solid transparent', transition: 'all 0.2s'
+                        }} onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent-blue)'; e.currentTarget.style.color = 'var(--color-accent-blue)'; }} 
+                           onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--color-text-main)'; }}>
+                            Bill Entry <ChevronRight size={16} />
+                        </Link>
+                        {isAdmin && (
+                            <Link to="/admin?tab=reconciliation" style={{ 
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                padding: '0.75rem 1rem', background: '#f8f9fa', borderRadius: '8px', 
+                                fontSize: '0.9rem', fontWeight: '600', color: 'var(--color-text-main)', 
+                                border: '1px solid transparent', transition: 'all 0.2s'
+                            }} onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-accent-blue)'; e.currentTarget.style.color = 'var(--color-accent-blue)'; }} 
+                               onMouseLeave={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.color = 'var(--color-text-main)'; }}>
+                                Logistics Matcher <ChevronRight size={16} />
+                            </Link>
+                        )}
+                    </div>
+                </div>
+
+                {/* Empty Placeholder Card 1 */}
+                <div style={{
+                    background: 'white', border: '2px dashed var(--color-border)', borderRadius: '14px',
+                    padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc'
+                }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>-</span>
+                </div>
+
+                {/* Empty Placeholder Card 2 */}
+                <div style={{
+                    background: 'white', border: '2px dashed var(--color-border)', borderRadius: '14px',
+                    padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ccc'
+                }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>-</span>
+                </div>
             </div>
 
             {visibleCards.length === 0 ? (

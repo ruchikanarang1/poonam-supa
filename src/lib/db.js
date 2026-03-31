@@ -133,6 +133,17 @@ export const updateLogisticsEntry = async (companyId, type, id, updates) => {
     return await updateDoc(ref, updates);
 };
 
+export const getLogisticsEntriesInRange = async (companyId, type, startDate, endDate) => {
+    const col = getScopedCol(companyId, `logistics_${type}`);
+    const q = query(
+        col,
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
 
 // ==== Phase 3: Ticketing System ==== //
 export const getTicketCategories = async (companyId) => {

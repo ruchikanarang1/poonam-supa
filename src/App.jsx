@@ -10,8 +10,9 @@ import AdminDashboard from './pages/AdminDashboard';
 import LogisticsPortal from './pages/LogisticsPortal';
 import TicketsPortal from './pages/TicketsPortal';
 import PurchaseOrders from './pages/PurchaseOrders';
-import GoodsCheckIn from './pages/GoodsCheckIn';
 import ProfileSetup from './components/ProfileSetup';
+import LogisticsArchive from './components/admin/LogisticsArchive';
+import GoodsCheckIn from './pages/GoodsCheckIn';
 import { useAuth } from './contexts/AuthContext';
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
               <Route path="/tickets" element={<TicketsPortal />} />
               <Route path="/purchase-orders" element={<PurchaseOrders />} />
               <Route path="/check-in" element={<GoodsCheckIn />} />
+              <Route path="/logistics-history" element={<LogisticsArchive />} />
               <Route path="/setup-company" element={<ProfileSetup />} />
             </Routes>
           </main>

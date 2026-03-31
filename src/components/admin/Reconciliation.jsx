@@ -118,43 +118,6 @@ export default function Reconciliation() {
 
     if (loading) return <p>Loading logistics data...</p>;
 
-    const renderTable = (dataLabel, items) => {
-        if (items.length === 0) return <p style={{ color: 'var(--color-primary)' }}><CheckCircle2 size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} /> No {dataLabel} found! Excellent.</p>;
-
-        const allKeys = new Set();
-        items.forEach(row => Object.keys(row).forEach(k => {
-            if (k !== 'id' && k !== 'createdAt') allKeys.add(k);
-        }));
-        const headers = Array.from(allKeys);
-
-        return (
-            <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
-                    <thead>
-                        <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                            <th style={{ padding: '0.5rem' }}>Date Entered</th>
-                            {headers.map(h => <th key={h} style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{h.replace(/_/g, ' ')}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {items.map(item => (
-                            <tr key={item.id} style={{ borderBottom: '1px solid var(--color-secondary)' }}>
-                                <td style={{ padding: '0.75rem 0.5rem', whiteSpace: 'nowrap', fontSize: '0.8rem', color: 'gray' }}>
-                                    {new Date(item.createdAt).toLocaleString()}
-                                </td>
-                                {headers.map(h => (
-                                    <td key={h} style={{ padding: '0.75rem 0.5rem' }}>
-                                        {item[h]?.toString() || '-'}
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        );
-    };
-
     return (
         <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
@@ -179,7 +142,7 @@ export default function Reconciliation() {
                     onClick={() => setActiveTab('pending_transport')}
                     style={{ position: 'relative' }}
                 >
-                    Pending Transports (No Bill)
+                    Pending to be Reconciled
                     {pendingTransports.length > 0 && <span style={{ background: '#ff4444', color: 'white', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingTransports.length}</span>}
                 </button>
                 <button
@@ -187,7 +150,7 @@ export default function Reconciliation() {
                     onClick={() => setActiveTab('pending_bills')}
                     style={{ position: 'relative' }}
                 >
-                    Pending Bills (No Transport)
+                    Pending with Transport (bills recieved)
                     {pendingBills.length > 0 && <span style={{ background: '#ff4444', color: 'white', borderRadius: '12px', padding: '2px 6px', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingBills.length}</span>}
                 </button>
                 <button
@@ -198,10 +161,65 @@ export default function Reconciliation() {
                 </button>
             </div>
 
-            {activeTab === 'pending_transport' && renderTable('Pending Transports', pendingTransports)}
-            {activeTab === 'pending_bills' && renderTable('Pending Bills', pendingBills)}
-            {activeTab === 'cleared' && renderTable('Cleared Matches', matchedTransports)}
+            {activeTab === 'pending_transport' && <RenderItemsTable dataLabel="Pending Transports" items={pendingTransports} />}
+            {activeTab === 'pending_bills' && <RenderItemsTable dataLabel="Pending Bills" items={pendingBills} />}
+            {activeTab === 'cleared' && <RenderItemsTable dataLabel="Cleared Matches" items={matchedTransports} />}
 
+        </div>
+    );
+}
+
+function RenderItemsTable({ dataLabel, items }) {
+    if (items.length === 0) return <p style={{ color: 'var(--color-primary)' }}><CheckCircle2 size={18} style={{ verticalAlign: 'middle', marginRight: '0.5rem' }} /> No {dataLabel} found! Excellent.</p>;
+
+    // Define the explicit order for the first few columns
+    const firstCols = ['date', 'time', 'lr_number', 'transport_company', 'vendor_name', 'location', 'lots', 'opened'];
+    const lastCols = ['submittedByName'];
+    const blacklisted = ['id', 'submittedBy', 'createdAt', ...firstCols, ...lastCols];
+
+    // Find all other dynamic keys
+    const otherKeys = new Set();
+    items.forEach(row => Object.keys(row).forEach(k => {
+        if (!blacklisted.includes(k)) otherKeys.add(k);
+    }));
+
+    // Final headers array
+    const headers = [...firstCols, ...Array.from(otherKeys), ...lastCols];
+
+    return (
+        <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '800px' }}>
+                <thead>
+                    <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
+                        {headers.map(h => (
+                            <th key={h} style={{ padding: '0.5rem', textTransform: 'capitalize', fontSize: '0.85rem' }}>
+                                {h === 'submittedByName' ? 'Submitted By' : h.replace(/_/g, ' ')}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                <tbody>
+                    {items.map(item => (
+                        <tr key={item.id} style={{ borderBottom: '1px solid var(--color-secondary)' }}>
+                            {headers.map(h => (
+                                <td key={h} style={{ padding: '0.75rem 0.5rem', fontSize: '0.85rem' }}>
+                                    {h === 'lots' ? (
+                                        (item[h] || []).map((l, i) => (
+                                            <div key={i} style={{ fontSize: '0.75rem' }}>
+                                                {l.lot_size} {l.backlogQty ? `(Short: ${l.backlogQty})` : ''}
+                                            </div>
+                                        ))
+                                    ) : h === 'opened' ? (
+                                        item[h] ? '✅ YES' : '❌ NO'
+                                    ) : (
+                                        item[h]?.toString() || '-'
+                                    )}
+                                </td>
+                            ))}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }

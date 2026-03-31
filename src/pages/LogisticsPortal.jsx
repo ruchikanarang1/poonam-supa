@@ -91,9 +91,16 @@ export default function LogisticsPortal({ type, title }) {
         setSubmitting(true);
         try {
             const isPending = type === 'transport' && lots.some(l => l.isShort);
+            const selectedPo = openPOs.find(p => p.id === formData.linkedPoId);
+            
             const entryData = {
-                ...formData, ...dynamicData, type, status: isPending ? 'pending' : 'resolved',
-                submittedBy: currentUser?.uid || 'guest', submittedByName: userData?.displayName || 'Guest',
+                ...formData, 
+                ...dynamicData, 
+                type, 
+                status: isPending ? 'pending' : 'resolved',
+                linkedPoNumber: selectedPo ? selectedPo.poNumber : '',
+                submittedBy: currentUser?.uid || 'guest', 
+                submittedByName: userData?.displayName || 'Guest',
                 createdAt: new Date().toISOString()
             };
             if (type === 'transport') entryData.lots = lots.map(({ id, showVendor, ...rest }) => rest);
@@ -194,40 +201,76 @@ export default function LogisticsPortal({ type, title }) {
                                     </div>
                                 </div>
                                 <div className="saas-excel-cell excel-column-action" style={{ borderRight: 'none', justifyContent: 'center', gap: '8px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                                        <span style={{ fontSize: '0.5rem', fontWeight: 'bold', color: formData.opened ? 'var(--color-accent-orange)' : '#94a3b8' }}>OPENED?</span>
-                                        <input type="checkbox" checked={formData.opened} onChange={e => setFormData({ ...formData, opened: e.target.checked })} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-                                    </div>
                                     <button type="submit" className="btn btn-primary" style={{ height: '32px', width: '32px', padding: 0, background: 'var(--color-accent-blue)', border: 'none' }} disabled={submitting}>
                                         <Save size={14} />
                                     </button>
                                 </div>
                             </div>
 
-                            {/* Dynamic Fields Section (Compact) */}
-                            {Object.keys(dynamicData).length > 0 && (
-                                <div style={{ display: 'flex', background: '#fcfcfc', padding: '6px 12px', borderBottom: '1px solid var(--color-border)', minWidth: '900px', flexWrap: 'wrap', gap: '1rem' }}>
+                            {/* Status & Linking Row (Always Visible) */}
+                            <div style={{ 
+                                display: 'flex', background: '#f8fafc', padding: '8px 12px', 
+                                borderBottom: '1px solid var(--color-border)', minWidth: '900px', 
+                                flexWrap: 'wrap', gap: '2rem', alignItems: 'center' 
+                            }}>
+                                {/* Opened Status */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '2px solid #e2e8f0', paddingRight: '1.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: '800', color: formData.opened ? 'var(--color-accent-blue)' : '#64748b' }}>
+                                        OPENED?
+                                    </span>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={formData.opened} 
+                                        onChange={e => setFormData({ ...formData, opened: e.target.checked })} 
+                                        style={{ width: '18px', height: '18px', cursor: 'pointer' }} 
+                                    />
+                                </div>
+
+                                {/* Purchase Order Linking */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff9e6', padding: '4px 12px', borderRadius: '6px', border: '1px solid #ffe58f' }}>
+                                    <span className="saas-lot-label-tiny" style={{ color: '#856404', fontWeight: '800' }}>LINK TO PURCHASE ORDER:</span>
+                                    {openPOs.length > 0 ? (
+                                        <select 
+                                            className="saas-input-box" 
+                                            style={{ width: '150px', height: '28px', border: '1px solid #ffe58f', borderRadius: '4px', background: 'white', fontWeight: 600, fontSize: '0.75rem' }} 
+                                            value={formData.linkedPoId} 
+                                            onChange={e => {
+                                                const poId = e.target.value;
+                                                const selectedPo = openPOs.find(p => p.id === poId);
+                                                if (selectedPo) {
+                                                    setFormData({
+                                                        ...formData,
+                                                        linkedPoId: poId,
+                                                        vendor_name: selectedPo.vendor || formData.vendor_name,
+                                                        location: selectedPo.location || formData.location
+                                                    });
+                                                } else {
+                                                    setFormData({...formData, linkedPoId: poId});
+                                                }
+                                            }}
+                                        >
+                                            <option value="">— Select PO —</option>
+                                            {openPOs.map(po => <option key={po.id} value={po.id}>{po.poNumber} ({po.vendor || 'No Vendor'})</option>)}
+                                        </select>
+                                    ) : (
+                                        <span style={{ fontSize: '0.7rem', color: '#b8a03a', fontStyle: 'italic' }}>No Open POs Available</span>
+                                    )}
+                                </div>
+
+                                {/* Dynamic Fields */}
+                                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                     {fields.map(f => {
                                         const fixedIds = ['lr_number', 'date', 'time', 'vendor_name', 'transport_company', 'location'];
                                         if (fixedIds.includes(f.id)) return null;
                                         return (
-                                            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                <span className="saas-lot-label-tiny">{f.label.toUpperCase()}:</span>
-                                                <input required={f.required} type={f.type} className="saas-input-box" style={{ width: '100px', height: '26px' }} value={dynamicData[f.id]} onChange={e => setDynamicData({...dynamicData, [f.id]: e.target.value})} />
+                                            <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span className="saas-lot-label-tiny" style={{ fontWeight: '700' }}>{f.label.toUpperCase()}:</span>
+                                                <input required={f.required} type={f.type} className="saas-input-box" style={{ width: '110px', height: '28px' }} value={dynamicData[f.id]} onChange={e => setDynamicData({...dynamicData, [f.id]: e.target.value})} />
                                             </div>
                                         );
                                     })}
-                                    {openPOs.length > 0 && (
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <span className="saas-lot-label-tiny">PO LINK:</span>
-                                            <select className="saas-input-box" style={{ width: '120px', height: '26px' }} value={formData.linkedPoId} onChange={e => setFormData({...formData, linkedPoId: e.target.value})}>
-                                                <option value="">—</option>
-                                                {openPOs.map(po => <option key={po.id} value={po.id}>{po.poNumber}</option>)}
-                                            </select>
-                                        </div>
-                                    )}
                                 </div>
-                            )}
+                            </div>
 
                             {/* Lot Spreadsheet - Arranged Rows */}
                             {type === 'transport' && (
@@ -287,10 +330,11 @@ export default function LogisticsPortal({ type, title }) {
                     <table className="daily-entries-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                             <tr>
-                                <th className="saas-table-header">LR#</th>
-                                <th className="saas-table-header">Vendor / Transport</th>
-                                <th className="saas-table-header">Details</th>
-                                <th className="saas-table-header">Status</th>
+                                <th className="saas-table-header" style={{ width: '100px' }}>LR</th>
+                                <th className="saas-table-header">Vendor</th>
+                                <th className="saas-table-header">Transport</th>
+                                <th className="saas-table-header">Lots</th>
+                                <th className="saas-table-header" style={{ width: '120px' }}>Remaining</th>
                                 <th className="saas-table-header" style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
@@ -300,24 +344,32 @@ export default function LogisticsPortal({ type, title }) {
                             ) : (
                                 filteredEntries.map(entry => (
                                     <tr key={entry.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                                        <td style={{ padding: '0.5rem 1rem', fontWeight: '700' }}>{entry.lr_number}</td>
                                         <td style={{ padding: '0.5rem 1rem' }}>
-                                            <div style={{ fontWeight: '600' }}>{entry.vendor_name}</div>
-                                            <div style={{ fontSize: '0.7rem', color: '#888' }}>{entry.transport_company}</div>
+                                            <div style={{ fontWeight: '700' }}>{entry.lr_number}</div>
+                                            {entry.linkedPoNumber && (
+                                                <div style={{ fontSize: '0.65rem', color: '#856404', background: '#fff9e6', padding: '1px 4px', borderRadius: '3px', display: 'inline-block', marginTop: '2px', border: '1px solid #ffe58f' }}>
+                                                    🔗 {entry.linkedPoNumber}
+                                                </div>
+                                            )}
                                         </td>
+                                        <td style={{ padding: '0.5rem 1rem', fontWeight: '600' }}>{entry.vendor_name}</td>
+                                        <td style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#888' }}>{entry.transport_company}</td>
                                         <td style={{ padding: '0.5rem 1rem' }}>
-                                            {entry.lots?.map((l, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}>
+                                            {(entry.lots || []).map((l, i) => (
+                                                <div key={i} style={{ fontSize: '0.75rem', display: 'flex', gap: '4px' }}>
                                                     <span>{l.lot_size}</span>
-                                                    {l.isShort && <span style={{ color: 'var(--color-accent-orange)', fontWeight: 600 }}>({l.backlogQty} shortfall)</span>}
-                                                    {l.lotVendor && <span style={{ color: '#888', fontStyle: 'italic' }}> - {l.lotVendor}</span>}
+                                                    {l.lotVendor && <span style={{ color: '#aaa', fontStyle: 'italic' }}>({l.lotVendor})</span>}
                                                 </div>
                                             ))}
+                                            {!entry.lots?.length && '-'}
                                         </td>
                                         <td style={{ padding: '0.5rem 1rem' }}>
-                                            <div className={entry.status === 'pending' ? 'table-pending-status' : 'table-resolved-status'} style={{ padding: '1px 6px', fontSize: '0.6rem', borderRadius: '4px' }}>
-                                                {entry.status === 'pending' ? 'PENDING' : 'OK'}
-                                            </div>
+                                            {(() => {
+                                                const totalShort = (entry.lots || []).reduce((acc, l) => acc + (parseFloat(l.backlogQty) || 0), 0);
+                                                return totalShort > 0 
+                                                    ? <span style={{ color: 'var(--color-accent-orange)', fontWeight: 700 }}>{totalShort} items</span>
+                                                    : <span style={{ color: '#2ecc71', fontWeight: 600 }}>-</span>;
+                                            })()}
                                         </td>
                                         <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>
                                             {isAdmin && entry.status === 'pending' && (
@@ -329,6 +381,24 @@ export default function LogisticsPortal({ type, title }) {
                             )}
                         </tbody>
                     </table>
+                </div>
+                {/* Statistics Footer */}
+                <div style={{ 
+                    padding: '0.75rem 1.5rem', background: '#fdfdfd', borderTop: '1px solid var(--color-border)', 
+                    display: 'flex', gap: '2rem', fontSize: '0.85rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: 'var(--color-text-light)', fontWeight: 500 }}>Total Lots Received:</span>
+                        <strong style={{ color: 'var(--color-accent-blue)', fontSize: '1rem' }}>
+                            {filteredEntries.reduce((acc, entry) => acc + (entry.lots || []).reduce((lAcc, l) => lAcc + (parseFloat(l.lot_size) || 0), 0), 0).toLocaleString()}
+                        </strong>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: 'var(--color-text-light)', fontWeight: 500 }}>Total Lots Pending:</span>
+                        <strong style={{ color: 'var(--color-accent-orange)', fontSize: '1rem' }}>
+                            {filteredEntries.reduce((acc, entry) => acc + (entry.lots || []).reduce((lAcc, l) => lAcc + (parseFloat(l.backlogQty) || 0), 0), 0).toLocaleString()}
+                        </strong>
+                    </div>
                 </div>
             </div>
         </div>

@@ -97,6 +97,14 @@ export default function Sidebar({ isOpen, isCollapsed, toggleCollapse, closeSide
                     {/* --- Employee Portals --- */}
                     {sectionLabel('Employee Portals')}
 
+                    {isAdmin && (
+                        navLink('/admin?tab=reconciliation', <GitMerge size={18} color={isActiveTab('reconciliation') ? 'var(--color-accent-blue)' : 'gray'} />, 'Logistics Matcher', isActiveTab('reconciliation'))
+                    )}
+
+                    {isAdmin && (
+                        navLink('/logistics-history', <Database size={18} color={isActivePath('/logistics-history') ? 'var(--color-accent-blue)' : 'gray'} />, 'Logistics Archive', isActivePath('/logistics-history'))
+                    )}
+
                     {(isAdmin || roles.includes('transport')) &&
                         navLink('/transport', <Truck size={18} color={isActivePath('/transport') ? 'var(--color-accent-orange)' : 'gray'} />, 'Transport Entry', isActivePath('/transport'))
                     }
@@ -129,7 +137,6 @@ export default function Sidebar({ isOpen, isCollapsed, toggleCollapse, closeSide
 
                             {divider()}
                             {sectionLabel('Logistics')}
-                            {tabLink('reconciliation', <GitMerge size={16} color={isActiveTab('reconciliation') ? 'var(--color-accent-blue)' : 'gray'} />, 'Logistics Matcher')}
 
                             {divider()}
                             {sectionLabel('Tickets')}

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, googleProvider, db } from '../lib/firebase';
+import { auth, googleProvider, db, signInWithPhoneNumber, RecaptchaVerifier } from '../lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, GoogleAuthProvider } from 'firebase/auth';
 import { 
     doc, getDoc, setDoc, updateDoc, 
@@ -22,28 +22,43 @@ export function AuthProvider({ children }) {
     const [currentCompanyId, setCurrentCompanyId] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    // Helper to ensure user profile exists in Firestore
+    const ensureUserProfile = async (user) => {
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userRef);
+
+        if (!userDoc.exists()) {
+            await setDoc(userRef, {
+                email: user.email || '',
+                phoneNumber: user.phoneNumber || '',
+                displayName: user.displayName || 'Steel User',
+                role: 'user',
+                createdAt: new Date().toISOString()
+            });
+            return { email: user.email || '', phoneNumber: user.phoneNumber || '', displayName: user.displayName || 'Steel User', role: 'user' };
+        }
+        return userDoc.data();
+    };
+
     // Sign in with Google
     const loginWithGoogle = async () => {
         try {
             const result = await signInWithPopup(auth, googleProvider);
-            const user = result.user;
-
-            // Check if user exists in Firestore
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
-
-            if (!userDoc.exists()) {
-                // Create basic user profile
-                await setDoc(userRef, {
-                    email: user.email,
-                    displayName: user.displayName,
-                    role: 'user', // Default role
-                    createdAt: new Date().toISOString()
-                });
-            }
-            return user;
+            await ensureUserProfile(result.user);
+            return result.user;
         } catch (error) {
             console.error("Google Sign In Error", error);
+            throw error;
+        }
+    };
+
+    // Sign in with Phone
+    const loginWithPhone = async (phoneNumber, verifier) => {
+        try {
+            const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, verifier);
+            return confirmationResult;
+        } catch (error) {
+            console.error("Phone Sign In error", error);
             throw error;
         }
     };
@@ -140,13 +155,32 @@ export function AuthProvider({ children }) {
         currentCompanyId,
         switchCompany,
         loginWithGoogle,
+        loginWithPhone,
+        ensureUserProfile,
         logout,
         loginForAdminExport
     };
 
+    if (loading) {
+        return (
+            <div style={{ 
+                height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                flexDirection: 'column', gap: '1rem', background: '#fafafa' 
+            }}>
+                <div style={{ 
+                    width: '40px', height: '40px', border: '3px solid #f3f3f3', 
+                    borderTop: '3px solid var(--color-accent-orange, #FF6A00)', 
+                    borderRadius: '50%', animation: 'spin 1s linear infinite' 
+                }} />
+                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                <div style={{ color: '#666', fontWeight: 500, fontSize: '0.9rem' }}>Initializing Steel ERP...</div>
+            </div>
+        );
+    }
+
     return (
         <AuthContext.Provider value={value}>
-            {!loading && (currentUser && userData && companies.length === 0 && !isSuperAdmin ? <ProfileSetup /> : children)}
+            {currentUser && userData && companies.length === 0 && !isSuperAdmin ? <ProfileSetup /> : children}
         </AuthContext.Provider>
     );
 }

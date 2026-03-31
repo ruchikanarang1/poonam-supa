@@ -3,14 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { ShoppingCart, LogOut, Menu, X, User, Plus, LayoutDashboard, Package } from 'lucide-react';
+import AuthModal from './AuthModal';
 
 export default function Navbar({ toggleSidebar }) {
     const { 
         currentUser, userData, isAdmin, companies, 
-        currentCompanyId, switchCompany, loginWithGoogle, logout 
+        currentCompanyId, switchCompany, logout 
     } = useAuth();
     const { cartCount } = useCart();
     const location = useLocation();
+    
+    const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
+    
     const currentComp = companies.find(c => c.id === currentCompanyId);
 
     return (
@@ -126,13 +130,18 @@ export default function Navbar({ toggleSidebar }) {
                                 </button>
                             </>
                         ) : (
-                            <button onClick={loginWithGoogle} className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
+                            <button onClick={() => setIsAuthModalOpen(true)} className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.9rem' }}>
                                 Sign In
                             </button>
                         )}
                     </div>
                 </div>
             </div>
+            
+            <AuthModal 
+                isOpen={isAuthModalOpen} 
+                onClose={() => setIsAuthModalOpen(false)} 
+            />
         </nav>
     );
 }

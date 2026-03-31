@@ -493,5 +493,5 @@ ul {
 .excel-column-datetime { width: 150px; flex-shrink: 0; }
 .excel-column-location { width: 180px; flex-shrink: 0; }
 .excel-column-flexible { flex: 1; min-width: 180px; }
-.excel-column-action { width: 60px; flex-shrink: 0; }
+.excel-column-action { width: 100px; flex-shrink: 0; }
 

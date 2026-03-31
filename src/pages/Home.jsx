@@ -12,7 +12,6 @@ export default function Home() {
         return <Catalogue />;
     }
 
-    // Default to Catalogue for all logged-in users 
-    // Dashboard is reachable via the new Navbar buttons
-    return <Catalogue />;
+    // Default to Dashboard for logged-in users
+    return <EmployeeDashboard />;
 }
