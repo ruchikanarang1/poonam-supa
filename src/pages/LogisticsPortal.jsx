@@ -14,6 +14,7 @@ export default function LogisticsPortal({ type, title }) {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [activeTab, setActiveTab] = useState('ledger'); // 'ledger' or 'pending'
+    const [expandedEntryId, setExpandedEntryId] = useState(null);
     
     // Form State
     const [formData, setFormData] = useState({
@@ -126,9 +127,9 @@ export default function LogisticsPortal({ type, title }) {
     if (loading) return <div className="container" style={{ padding: '2rem' }}><p>Loading...</p></div>;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const filteredEntries = activeTab === 'ledger' 
+    const filteredEntries = (activeTab === 'ledger' 
         ? allEntries.filter(e => e.createdAt && e.createdAt.startsWith(todayStr))
-        : allEntries.filter(e => e.status === 'pending');
+        : allEntries.filter(e => e.status === 'pending')).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return (
         <div className="container" style={{ padding: '0.25rem 0' }}>
@@ -153,8 +154,9 @@ export default function LogisticsPortal({ type, title }) {
                 </div>
             </div>
 
-            {/* Rearranged & Themed Excel Form */}
-            {activeTab === 'ledger' && (
+            <div className="portal-container">
+                {/* Rearranged & Themed Excel Form */}
+                {activeTab === 'ledger' && (
                 <div className="saas-excel-container">
                     <form onSubmit={handleSubmit}>
                         <div className="saas-form-row-scroll">
@@ -170,10 +172,10 @@ export default function LogisticsPortal({ type, title }) {
 
                             {/* Main Entry Row */}
                             <div className="saas-excel-data-row">
-                                <div className="saas-excel-cell excel-column-lr">
+                                <div className="saas-excel-cell excel-column-lr" data-label="LR Number">
                                     <input required className="saas-input-box" placeholder="LR#" value={formData.lr_number} onChange={e => setFormData({...formData, lr_number: e.target.value})} />
                                 </div>
-                                <div className="saas-excel-cell excel-column-flexible">
+                                <div className="saas-excel-cell excel-column-flexible" data-label="Transport Co">
                                     <GenericAutocomplete 
                                         placeholder="Transport Search..." 
                                         fetchData={() => getTransports(currentCompanyId)} 
@@ -182,7 +184,7 @@ export default function LogisticsPortal({ type, title }) {
                                         onSelect={t => setFormData({...formData, transport_company: t.name})}
                                     />
                                 </div>
-                                <div className="saas-excel-cell excel-column-flexible">
+                                <div className="saas-excel-cell excel-column-flexible" data-label="Vendor / Supplier">
                                     <GenericAutocomplete 
                                         placeholder="Vendor Search..." 
                                         fetchData={() => getSuppliers(currentCompanyId)} 
@@ -191,26 +193,26 @@ export default function LogisticsPortal({ type, title }) {
                                         onSelect={s => setFormData({...formData, vendor_name: s.name, location: s.address || formData.location})}
                                     />
                                 </div>
-                                <div className="saas-excel-cell excel-column-location">
+                                <div className="saas-excel-cell excel-column-location" data-label="Location">
                                     <input className="saas-input-box" placeholder="Auto-filled..." value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} />
                                 </div>
-                                <div className="saas-excel-cell excel-column-datetime">
+                                <div className="saas-excel-cell excel-column-datetime" data-label="Date & Time">
                                     <div style={{ display: 'flex', gap: '2px', width: '100%' }}>
                                         <input type="date" required className="saas-input-box" style={{ flex: 1.5, fontSize: '0.7rem' }} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
                                         <input type="time" required className="saas-input-box" style={{ flex: 1, fontSize: '0.7rem' }} value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
                                     </div>
                                 </div>
-                                <div className="saas-excel-cell excel-column-action" style={{ borderRight: 'none', justifyContent: 'center', gap: '8px' }}>
-                                    <button type="submit" className="btn btn-primary" style={{ height: '32px', width: '32px', padding: 0, background: 'var(--color-accent-blue)', border: 'none' }} disabled={submitting}>
-                                        <Save size={14} />
+                                <div className="saas-excel-cell excel-column-action hide-on-mobile" data-label="Save Entry">
+                                    <button type="submit" className="btn btn-primary saas-save-btn" disabled={submitting}>
+                                        <Save size={16} />
                                     </button>
                                 </div>
                             </div>
 
                             {/* Status & Linking Row (Always Visible) */}
-                            <div style={{ 
+                            <div className="saas-status-row" style={{ 
                                 display: 'flex', background: '#f8fafc', padding: '8px 12px', 
-                                borderBottom: '1px solid var(--color-border)', minWidth: '900px', 
+                                borderBottom: '1px solid var(--color-border)', 
                                 flexWrap: 'wrap', gap: '2rem', alignItems: 'center' 
                             }}>
                                 {/* Opened Status */}
@@ -313,6 +315,13 @@ export default function LogisticsPortal({ type, title }) {
                                     ))}
                                 </div>
                             )}
+
+                            {/* Mobile-Only Big Save Button at very bottom of form */}
+                            <div className="show-on-mobile" style={{ padding: '1rem', background: 'white', borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px' }}>
+                                <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '48px', fontSize: '1rem' }} disabled={submitting}>
+                                    <Save size={20} style={{ marginRight: '8px' }} /> SAVE ENTRY
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -327,60 +336,136 @@ export default function LogisticsPortal({ type, title }) {
                     <div style={{ fontSize: '0.7rem', color: 'var(--color-text-light)' }}>{filteredEntries.length} items</div>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto' }}>
-                    <table className="daily-entries-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-                        <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                            <tr>
-                                <th className="saas-table-header" style={{ width: '100px' }}>LR</th>
-                                <th className="saas-table-header">Vendor</th>
-                                <th className="saas-table-header">Transport</th>
-                                <th className="saas-table-header">Lots</th>
-                                <th className="saas-table-header" style={{ width: '120px' }}>Remaining</th>
-                                <th className="saas-table-header" style={{ textAlign: 'right' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredEntries.length === 0 ? (
-                                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: '#999', fontStyle: 'italic' }}>No records found.</td></tr>
-                            ) : (
-                                filteredEntries.map(entry => (
-                                    <tr key={entry.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                                        <td style={{ padding: '0.5rem 1rem' }}>
-                                            <div style={{ fontWeight: '700' }}>{entry.lr_number}</div>
-                                            {entry.linkedPoNumber && (
-                                                <div style={{ fontSize: '0.65rem', color: '#856404', background: '#fff9e6', padding: '1px 4px', borderRadius: '3px', display: 'inline-block', marginTop: '2px', border: '1px solid #ffe58f' }}>
-                                                    🔗 {entry.linkedPoNumber}
+                    
+                    {/* Desktop View Table */}
+                    <div className="hide-on-mobile">
+                        <table className="daily-entries-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                                <tr>
+                                    <th className="saas-table-header" style={{ width: '100px' }}>LR</th>
+                                    <th className="saas-table-header">Vendor</th>
+                                    <th className="saas-table-header">Transport</th>
+                                    <th className="saas-table-header">Lots</th>
+                                    <th className="saas-table-header" style={{ width: '120px' }}>Remaining</th>
+                                    <th className="saas-table-header" style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filteredEntries.length === 0 ? (
+                                    <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#999', fontStyle: 'italic' }}>No records found.</td></tr>
+                                ) : (
+                                    filteredEntries.map(entry => (
+                                        <tr key={entry.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                            <td style={{ padding: '0.5rem 1rem' }} data-label="LR Number">
+                                                <div style={{ fontWeight: '700' }}>{entry.lr_number}</div>
+                                                {entry.linkedPoNumber && (
+                                                    <div style={{ fontSize: '0.65rem', color: '#856404', background: '#fff9e6', padding: '1px 4px', borderRadius: '3px', display: 'inline-block', marginTop: '2px', border: '1px solid #ffe58f' }}>
+                                                        🔗 {entry.linkedPoNumber}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem', fontWeight: '600' }} data-label="Vendor">{entry.vendor_name}</td>
+                                            <td style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#888' }} data-label="Transport">{entry.transport_company}</td>
+                                            <td style={{ padding: '0.5rem 1rem' }} data-label="Lots">
+                                                {(entry.lots || []).map((l, i) => (
+                                                    <div key={i} style={{ fontSize: '0.75rem', display: 'flex', gap: '4px' }}>
+                                                        <span>{l.lot_size}</span>
+                                                        {l.lotVendor && <span style={{ color: '#aaa', fontStyle: 'italic' }}>({l.lotVendor})</span>}
+                                                    </div>
+                                                ))}
+                                                {!entry.lots?.length && '-'}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem' }} data-label="Remaining">
+                                                {(() => {
+                                                    const totalShort = (entry.lots || []).reduce((acc, l) => acc + (parseFloat(l.backlogQty) || 0), 0);
+                                                    return totalShort > 0 
+                                                        ? <span style={{ color: 'var(--color-accent-orange)', fontWeight: 700 }}>{totalShort} items</span>
+                                                        : <span style={{ color: '#2ecc71', fontWeight: 600 }}>-</span>;
+                                                })()}
+                                            </td>
+                                            <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }} data-label="Actions">
+                                                {isAdmin && entry.status === 'pending' && (
+                                                    <button className="btn btn-primary" style={{ padding: '2px 8px', fontSize: '0.65rem', background: 'var(--color-accent-blue)', border: 'none' }} onClick={() => handleReconcile(entry)}>Resolve</button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Card List View */}
+                    <div className="show-on-mobile" style={{ padding: '0.5rem', background: '#f8fafc' }}>
+                        {filteredEntries.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '2rem', color: '#999', fontStyle: 'italic' }}>No records found.</div>
+                        ) : (
+                            filteredEntries.map(entry => {
+                                const isExpanded = expandedEntryId === entry.id;
+                                const totalShort = (entry.lots || []).reduce((acc, l) => acc + (parseFloat(l.backlogQty) || 0), 0);
+                                return (
+                                    <div key={entry.id} style={{ 
+                                        background: 'white', borderRadius: '12px', marginBottom: '0.75rem', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0',
+                                        overflow: 'hidden'
+                                    }}>
+                                        {/* Slim Summary Row */}
+                                        <div 
+                                            onClick={() => setExpandedEntryId(isExpanded ? null : entry.id)}
+                                            style={{ padding: '0.8rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                        >
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: '700', fontSize: '0.95rem', color: '#1e293b' }}>{entry.vendor_name || 'Unknown Vendor'}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
+                                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: entry.status === 'pending' ? 'var(--color-accent-orange)' : '#10b981' }}></span>
+                                                    <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '500' }}>{entry.lr_number || 'No LR'} • {entry.transport_company || 'No Transport'}</span>
                                                 </div>
-                                            )}
-                                        </td>
-                                        <td style={{ padding: '0.5rem 1rem', fontWeight: '600' }}>{entry.vendor_name}</td>
-                                        <td style={{ padding: '0.5rem 1rem', fontSize: '0.8rem', color: '#888' }}>{entry.transport_company}</td>
-                                        <td style={{ padding: '0.5rem 1rem' }}>
-                                            {(entry.lots || []).map((l, i) => (
-                                                <div key={i} style={{ fontSize: '0.75rem', display: 'flex', gap: '4px' }}>
-                                                    <span>{l.lot_size}</span>
-                                                    {l.lotVendor && <span style={{ color: '#aaa', fontStyle: 'italic' }}>({l.lotVendor})</span>}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                {totalShort > 0 && <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--color-accent-orange)', background: '#fff7ed', padding: '4px 8px', borderRadius: '12px' }}>{totalShort} Short</span>}
+                                                <button style={{ background: 'none', border: 'none', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}>
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                                                        <polyline points="6 9 12 15 18 9"></polyline>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Expanded Details View */}
+                                        {isExpanded && (
+                                            <div style={{ padding: '0.8rem', borderTop: '1px solid #f1f5f9', background: '#f8fafc', fontSize: '0.85rem' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.75rem' }}>
+                                                    <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Date</span> <strong style={{ color: '#334155' }}>{entry.date} {entry.time}</strong></div>
+                                                    <div><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Location</span> <strong style={{ color: '#334155' }}>{entry.location || '—'}</strong></div>
+                                                    {entry.linkedPoNumber && <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Linked PO</span> <strong style={{ color: '#b45309' }}>{entry.linkedPoNumber}</strong></div>}
                                                 </div>
-                                            ))}
-                                            {!entry.lots?.length && '-'}
-                                        </td>
-                                        <td style={{ padding: '0.5rem 1rem' }}>
-                                            {(() => {
-                                                const totalShort = (entry.lots || []).reduce((acc, l) => acc + (parseFloat(l.backlogQty) || 0), 0);
-                                                return totalShort > 0 
-                                                    ? <span style={{ color: 'var(--color-accent-orange)', fontWeight: 700 }}>{totalShort} items</span>
-                                                    : <span style={{ color: '#2ecc71', fontWeight: 600 }}>-</span>;
-                                            })()}
-                                        </td>
-                                        <td style={{ padding: '0.5rem 1rem', textAlign: 'right' }}>
-                                            {isAdmin && entry.status === 'pending' && (
-                                                <button className="btn btn-primary" style={{ padding: '2px 8px', fontSize: '0.65rem', background: 'var(--color-accent-blue)', border: 'none' }} onClick={() => handleReconcile(entry)}>Resolve</button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                                
+                                                {entry.lots && entry.lots.length > 0 && (
+                                                    <div style={{ marginTop: '0.5rem', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.5rem' }}>
+                                                        <div style={{ fontSize: '0.7rem', fontWeight: '800', color: '#94a3b8', marginBottom: '6px', letterSpacing: '0.05em' }}>LOTS INCLUDED</div>
+                                                        {entry.lots.map((l, i) => (
+                                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < entry.lots.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+                                                                <span style={{ color: '#334155', fontWeight: '500' }}>{l.lot_size} {l.lotVendor ? <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.75rem' }}>({l.lotVendor})</span> : ''}</span>
+                                                                {l.isShort && <span style={{ color: 'var(--color-accent-orange)', fontWeight: '700', fontSize: '0.8rem' }}>Short: {l.backlogQty}</span>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {isAdmin && entry.status === 'pending' && (
+                                                    <div style={{ marginTop: '0.75rem' }}>
+                                                        <button className="btn btn-primary" style={{ width: '100%', padding: '10px', fontSize: '0.85rem', background: 'var(--color-accent-blue)', border: 'none', fontWeight: '600' }} onClick={() => handleReconcile(entry)}>
+                                                            <CheckCircle size={16} style={{ marginRight: '6px', display: 'inline-block', verticalAlign: 'middle' }} /> Resolve Backlog
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
                 {/* Statistics Footer */}
                 <div style={{ 
@@ -401,6 +486,7 @@ export default function LogisticsPortal({ type, title }) {
                     </div>
                 </div>
             </div>
+        </div>
         </div>
     );
 }

@@ -153,8 +153,9 @@ export default function GoodsCheckIn() {
                 </div>
             </div>
 
-            {/* Multi-Product Entry Section */}
-            <div className="saas-excel-container" style={{ marginBottom: '1.5rem' }}>
+            <div className="portal-container">
+            {/* Core Check-In Form */}
+            <div className="saas-excel-container" style={{ marginBottom: '1rem' }}>
                 <div className="saas-excel-header">
                     <div className="saas-excel-label" style={{ width: '200px' }}>Brand</div>
                     <div className="saas-excel-label" style={{ width: '200px' }}>Product / Item</div>
@@ -162,12 +163,12 @@ export default function GoodsCheckIn() {
                     <div className="saas-excel-label" style={{ width: '100px' }}>Quantity</div>
                     <div className="saas-excel-label" style={{ width: '120px' }}>Unit</div>
                     <div className="saas-excel-label" style={{ flex: 1, borderRight: 'none' }}>Matched Purchase Orders</div>
-                    <div className="saas-excel-label" style={{ width: '50px', borderRight: 'none' }}></div>
+                    <div className="saas-excel-label" style={{ width: '50px', borderRight: 'none' }}>Action</div>
                 </div>
 
                 {products.map((prod) => (
                     <div key={prod.id} className="saas-excel-data-row" style={{ minHeight: '50px' }}>
-                        <div className="saas-excel-cell" style={{ width: '200px' }}>
+                        <div className="saas-excel-cell" style={{ width: '200px' }} data-label="Brand">
                             {(() => {
                                 // 1. PRE-FILTER BRANDS FOR THIS ROW (From Registry)
                                 const currentVendor = (prod.vendorName || '').trim().toLowerCase();
@@ -208,7 +209,7 @@ export default function GoodsCheckIn() {
                                 );
                             })()}
                         </div>
-                        <div className="saas-excel-cell" style={{ width: '200px' }}>
+                        <div className="saas-excel-cell" style={{ width: '200px' }} data-label="Product / Item">
                             {(() => {
                                 // 2. PRE-FILTER PRODUCTS FOR THIS ROW (From Registry)
                                 const currentVendor = (prod.vendorName || '').trim().toLowerCase();
@@ -249,7 +250,7 @@ export default function GoodsCheckIn() {
                                 );
                             })()}
                         </div>
-                        <div className="saas-excel-cell" style={{ width: '200px' }}>
+                        <div className="saas-excel-cell" style={{ width: '200px' }} data-label="Linked Vendor">
                             {(() => {
                                 // 3. PRE-FILTER VENDORS FOR THIS ROW (From Registry)
                                 const currentBrand = (prod.brandName || '').trim().toLowerCase();
@@ -290,10 +291,10 @@ export default function GoodsCheckIn() {
                                 );
                             })()}
                         </div>
-                        <div className="saas-excel-cell" style={{ width: '100px' }}>
+                        <div className="saas-excel-cell" style={{ width: '100px' }} data-label="Quantity">
                             <input className="saas-input-box" type="number" placeholder="0.00" value={prod.quantity} onChange={e => updateProduct(prod.id, { quantity: e.target.value })} />
                         </div>
-                        <div className="saas-excel-cell" style={{ width: '120px' }}>
+                        <div className="saas-excel-cell" style={{ width: '120px' }} data-label="Unit">
                             <div style={{ position: 'relative', width: '100%' }}>
                                 <select className="saas-input-box" style={{ appearance: 'auto' }} value={globalUnits.includes(prod.unit) ? prod.unit : 'custom'} onChange={e => updateProduct(prod.id, { unit: e.target.value === 'custom' ? '' : e.target.value })}>
                                     <option value="">Select Unit</option>
@@ -305,7 +306,7 @@ export default function GoodsCheckIn() {
                                 )}
                             </div>
                         </div>
-                        <div className="saas-excel-cell" style={{ flex: 1, borderRight: 'none', background: '#f8fafc', fontSize: '0.75rem', paddingLeft: '1rem' }}>
+                        <div className="saas-excel-cell" style={{ flex: 1, borderRight: 'none', background: '#f8fafc', fontSize: '0.75rem', paddingLeft: '1rem' }} data-label="Matched POs">
                             {matchedPOs.length > 0 ? (
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                     {matchedPOs.map(po => (
@@ -316,7 +317,7 @@ export default function GoodsCheckIn() {
                                 </div>
                             ) : <span style={{ color: '#94a3b8' }}>No matches found</span>}
                         </div>
-                        <div className="saas-excel-cell" style={{ width: '50px', borderRight: 'none', justifyContent: 'center' }}>
+                        <div className="saas-excel-cell" style={{ width: '50px', borderRight: 'none', justifyContent: 'center' }} data-label="Remove">
                             <button onClick={() => removeProduct(prod.id)} style={{ border: 'none', background: 'none', color: '#fca5a5', cursor: 'pointer' }}><Trash2 size={16} /></button>
                         </div>
                     </div>
@@ -371,24 +372,24 @@ export default function GoodsCheckIn() {
                                     </td>
                                 </tr>
                             ) : (
-                                history.map(entry => (
+                                [...history].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(entry => (
                                     <tr key={entry.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-accent-blue)' }}>{entry.lrNumber || 'N/A'}</td>
-                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                        <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: 'var(--color-accent-blue)' }} data-label="LR Number">{entry.lrNumber || 'N/A'}</td>
+                                        <td style={{ padding: '0.75rem 1rem' }} data-label="Items Received">
                                             {entry.items?.map((it, idx) => (
                                                 <div key={idx} style={{ fontSize: '0.75rem', marginBottom: '2px' }}>
                                                     <strong>{it.quantity} {it.unit}</strong> — {it.brandName} {it.productName}
                                                 </div>
                                             ))}
                                         </td>
-                                        <td style={{ padding: '0.75rem 1rem' }}>
+                                        <td style={{ padding: '0.75rem 1rem' }} data-label="Matched POs">
                                             {entry.matchedPOs?.map(po => (
                                                 <span key={po} style={{ display: 'inline-block', background: '#f0fdf4', color: '#166534', padding: '1px 6px', borderRadius: '4px', fontSize: '0.65rem', border: '1px solid #dcfce7', marginRight: '4px' }}>
                                                     {po}
                                                 </span>
                                             ))}
                                         </td>
-                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b', fontSize: '0.75rem' }}>
+                                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', color: '#64748b', fontSize: '0.75rem' }} data-label="Time">
                                             {entry.createdAt ? new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                         </td>
                                     </tr>
@@ -397,6 +398,7 @@ export default function GoodsCheckIn() {
                         </tbody>
                     </table>
                 </div>
+            </div>
             </div>
         </div>
     );

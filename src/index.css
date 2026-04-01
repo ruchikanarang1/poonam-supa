@@ -182,6 +182,14 @@ ul {
   h1 { font-size: 1.75rem; }
   h2 { font-size: 1.5rem; }
   h3 { font-size: 1.25rem; }
+
+  /* Prevent any horizontal overflow at the root */
+  body, html {
+    overflow-x: hidden;
+    position: relative;
+    width: 100%;
+    overscroll-behavior-y: contain; /* Prevent pull-to-refresh from wiggling the UI */
+  }
 }
 
 /* Base Utility Classes */
@@ -248,6 +256,9 @@ ul {
 
   .content-area {
     padding: var(--spacing-sm);
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden;
   }
 }
 
@@ -428,6 +439,10 @@ ul {
   align-items: stretch;
 }
 
+.saas-status-row {
+  min-width: 900px;
+}
+
 .saas-excel-cell {
   padding: 6px;
   border-right: 1px solid #f1f5f9;
@@ -450,6 +465,20 @@ ul {
   border-color: var(--color-accent-blue);
   box-shadow: 0 0 0 2px rgba(10, 25, 47, 0.1);
   outline: none;
+}
+
+.saas-save-btn {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  background-color: var(--color-accent-blue);
+  border: none;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
 }
 
 .saas-lot-row {
@@ -495,3 +524,180 @@ ul {
 .excel-column-flexible { flex: 1; min-width: 180px; }
 .excel-column-action { width: 100px; flex-shrink: 0; }
 
+@media (max-width: 768px) {
+  /* Transforming Table to Cards on Mobile */
+  .daily-entries-table thead {
+    display: none; /* Hide headers on mobile */
+  }
+
+  .daily-entries-table, 
+  .daily-entries-table tbody, 
+  .daily-entries-table tr, 
+  .daily-entries-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .daily-entries-table tr {
+    margin-bottom: 0.75rem;
+    background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .daily-entries-table td {
+    padding: 0.25rem 0 !important;
+    border: none !important;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .daily-entries-table td::before {
+    content: attr(data-label);
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: #888;
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+    min-width: 80px;
+  }
+
+  /* Compact Mobile Form */
+  .portal-container {
+    flex-direction: column-reverse;
+  }
+
+  .saas-excel-container {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .saas-form-row-scroll {
+    overflow: visible;
+  }
+
+  .saas-excel-header {
+    display: none; /* Hide horizontal header */
+  }
+
+  .saas-excel-data-row {
+    flex-direction: column;
+    min-width: unset;
+    gap: 1rem; /* INCREASED GAP for better spacing */
+    background: var(--color-primary);
+    padding: 1.25rem; /* MATCHING MOCKUP PADDING */
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+  }
+
+  .saas-excel-cell {
+    border: none;
+    padding: 0;
+    width: 100% !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px; /* Gap between label and input */
+  }
+
+  .saas-excel-cell::before {
+    content: attr(data-label);
+    font-size: 0.7rem; /* LARGER LABEL */
+    font-weight: 900;
+    color: var(--color-accent-blue); /* DARK NAVY COLOR */
+    text-transform: uppercase;
+    font-family: var(--font-family);
+  }
+
+  .saas-input-box {
+    height: 42px; /* TALLER MOBILE TOUCH TARGET */
+    font-size: 16px !important; /* CRITICAL: Must be exactly 16px or larger to stop iOS from auto-zooming! */
+    width: 100%;
+    padding: 0 12px;
+  }
+
+  /* Specific handling for Date/Time flex box inside cell on mobile */
+  .saas-excel-cell.excel-column-datetime > div {
+    gap: 10px !important;
+  }
+  .saas-excel-cell.excel-column-datetime input {
+    font-size: 16px !important; /* Prevent zoom */
+  }
+
+  .saas-excel-cell.excel-column-action {
+    margin-top: 0.75rem;
+    align-items: stretch;
+  }
+
+  .saas-excel-cell.excel-column-action button {
+    width: 100% !important;
+    height: 46px !important; /* TALL BUTTON */
+    border-radius: 6px; /* Rounded save button */
+  }
+
+  /* Status Row on Mobile */
+  .saas-status-row,
+  .saas-excel-container > form > div > div:nth-child(3) {
+    min-width: unset !important;
+    padding: 1rem !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 1rem !important;
+    margin-top: 0.5rem;
+    background: white !important;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border) !important;
+  }
+
+  /* Lot Rows on Mobile */
+  .saas-lot-row {
+    min-width: unset !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+    border: 1px solid #eee;
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.5rem;
+  }
+
+  .saas-lot-row > div {
+    width: 100% !important;
+  }
+
+  /* Hide elements on tiny screens if needed */
+  .hide-on-mobile-flex {
+    display: none !important;
+  }
+  /* Ensure ALL containers are fixed-width on mobile to stop horizontal scroll */
+  .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 1rem !important; /* Edge padding */
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .saas-excel-container, .saas-ledger-card, .card {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Fix for specific Excel data row wiggling */
+  .saas-excel-data-row {
+    width: 100% !important;
+    min-width: 0 !important; /* Force override of any desktop min-width */
+  }
+
+  /* Fixed height ledger card on mobile to prevent whole-page scrolling issues */
+  .saas-ledger-card {
+    max-height: 70vh !important;
+  }
+}
