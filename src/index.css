@@ -182,14 +182,6 @@ ul {
   h1 { font-size: 1.75rem; }
   h2 { font-size: 1.5rem; }
   h3 { font-size: 1.25rem; }
-
-  /* Prevent any horizontal overflow at the root */
-  body, html {
-    overflow-x: hidden;
-    position: relative;
-    width: 100%;
-    overscroll-behavior-y: contain; /* Prevent pull-to-refresh from wiggling the UI */
-  }
 }
 
 /* Base Utility Classes */
