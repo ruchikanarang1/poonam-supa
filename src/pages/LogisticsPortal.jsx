@@ -34,12 +34,20 @@ export default function LogisticsPortal({ type, title }) {
     const hasAccess = isAdmin || roles.includes(type);
 
     useEffect(() => {
-        if (hasAccess && currentCompanyId) {
-            loadInitialData();
-            const now = new Date();
-            setTodayDateStr(now.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }));
-            setTodayDayStr(now.toLocaleDateString('en-US', { weekday: 'long' }));
+        if (!hasAccess) {
+            setLoading(false);
+            return;
         }
+
+        if (!currentCompanyId) {
+            setLoading(false);
+            return;
+        }
+
+        loadInitialData();
+        const now = new Date();
+        setTodayDateStr(now.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' }));
+        setTodayDayStr(now.toLocaleDateString('en-US', { weekday: 'long' }));
     }, [type, hasAccess, currentCompanyId]);
 
     const loadInitialData = async () => {
@@ -77,6 +85,7 @@ export default function LogisticsPortal({ type, title }) {
 
         } catch (err) {
             console.error('Failed to load initial data', err);
+            alert(`Error loading data: ${err.message}. Please check your connection and try again.`);
         } finally {
             setLoading(false);
         }
@@ -123,6 +132,12 @@ export default function LogisticsPortal({ type, title }) {
     };
 
     if (!currentUser) return <div className="container" style={{ padding: '2rem', textAlign: 'center' }}><p>Please log in.</p></div>;
+    if (!currentCompanyId) return <div className="container" style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+        <div style={{ background: '#fff', padding: '3rem', borderRadius: '12px', border: '1px solid #e2e8f0', maxWidth: '500px', margin: '0 auto' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: '1rem' }}>No Company Selected</h2>
+            <p style={{ color: '#64748b', marginBottom: '2rem', lineHeight: 1.6 }}>You need to be part of an active company to access the {title}. Please create a new company using the + button in the top navigation bar, or ask your administrator to invite you.</p>
+        </div>
+    </div>;
     if (!hasAccess) return <div className="container" style={{ padding: '2rem', textAlign: 'center' }}><h2 style={{ color: 'red' }}>Access Denied</h2></div>;
     if (loading) return <div className="container" style={{ padding: '2rem' }}><p>Loading...</p></div>;
 
@@ -440,8 +455,25 @@ export default function LogisticsPortal({ type, title }) {
                                                     {entry.linkedPoNumber && <div style={{ gridColumn: '1 / -1' }}><span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block' }}>Linked PO</span> <strong style={{ color: '#b45309' }}>{entry.linkedPoNumber}</strong></div>}
                                                 </div>
                                                 
+                                                {/* Meta/Dynamic Fields */}
+                                                {entry.metadata && Object.keys(entry.metadata).length > 0 && (
+                                                    <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                        <div style={{ fontSize: '0.7rem', fontWeight: '800', color: '#94a3b8', marginBottom: '8px', letterSpacing: '0.05em' }}>ADDITIONAL DETAILS</div>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                            {Object.entries(entry.metadata).map(([key, val]) => (
+                                                                <div key={key}>
+                                                                    <span style={{ color: '#64748b', fontSize: '0.7rem', display: 'block', textTransform: 'uppercase' }}>
+                                                                        {key.replace(/_/g, ' ')}
+                                                                    </span>
+                                                                    <strong style={{ color: '#334155' }}>{val || '—'}</strong>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {entry.lots && entry.lots.length > 0 && (
-                                                    <div style={{ marginTop: '0.5rem', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.5rem' }}>
+                                                    <div style={{ marginTop: '0.75rem', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '0.5rem' }}>
                                                         <div style={{ fontSize: '0.7rem', fontWeight: '800', color: '#94a3b8', marginBottom: '6px', letterSpacing: '0.05em' }}>LOTS INCLUDED</div>
                                                         {entry.lots.map((l, i) => (
                                                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < entry.lots.length - 1 ? '1px solid #f1f5f9' : 'none' }}>

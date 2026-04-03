@@ -53,7 +53,10 @@ export default function GoodsCheckIn() {
             // Filter for today's check-ins
             const today = new Date().toISOString().split('T')[0];
             setHistory(checkins.filter(c => c.createdAt && c.createdAt.startsWith(today)).reverse());
-        } catch (err) { console.error(err); }
+        } catch (err) { 
+            console.error(err); 
+            alert(`Error loading data: ${err.message}. Please check your connection and try again.`);
+        }
         finally { setLoading(false); }
     };
 

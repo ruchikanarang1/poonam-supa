@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -28,14 +28,25 @@ export default function AdminDashboard() {
     const [products, setProducts] = useState([]);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const isProcessingRef = useRef(false);
     const [units, setUnits] = useState([]);
     const [newUnit, setNewUnit] = useState('');
 
     // Product Form State
     const [editingId, setEditingId] = useState(null);
-    const [formData, setFormData] = useState({ name: '', category: '', description: '', dimensions: '', price: '', imageUrl: null });
+    const [formData, setFormData] = useState({ 
+        name: '', 
+        brand: '', 
+        category: '', 
+        description: '', 
+        dimensions: '', 
+        price: '', 
+        sizes: '', 
+        imageUrl: null 
+    });
     const [imageFile, setImageFile] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState("");
 
     // Multi-select State
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -46,19 +57,30 @@ export default function AdminDashboard() {
 
     const fetchData = async () => {
         if (!currentCompanyId && !isSuperAdmin) return;
+        
+        // Start loading
         setLoading(true);
+        
+        // Safety timeout: if loading takes > 6 seconds, force it off
+        const loadTimeout = setTimeout(() => {
+            setLoading(false);
+        }, 6000);
+
         try {
-            const [pData, oData, uData] = await Promise.all([
-                getProducts(currentCompanyId), 
-                getOrders(currentCompanyId), 
-                getGlobalUnits(currentCompanyId)
-            ]);
-            setProducts(pData);
-            setOrders(oData);
-            setUnits(uData);
+            // Fetch everything independently so one failure doesn't block others
+            const pPromise = getProducts(currentCompanyId).catch(e => (console.error("Products Load Error:", e), []));
+            const oPromise = getOrders(currentCompanyId).catch(e => (console.error("Orders Load Error:", e), []));
+            const uPromise = getGlobalUnits(currentCompanyId).catch(e => (console.error("Units Load Error:", e), []));
+
+            const [pData, oData, uData] = await Promise.all([pPromise, oPromise, uPromise]);
+            
+            setProducts(pData || []);
+            setOrders(oData || []);
+            setUnits(uData || []);
         } catch (err) {
-            console.error(err);
+            console.error("Global Fetch Error:", err);
         } finally {
+            clearTimeout(loadTimeout);
             setLoading(false);
         }
     };
@@ -110,40 +132,75 @@ export default function AdminDashboard() {
 
     const handleProductSubmit = async (e) => {
         e.preventDefault();
+        
+        if (!currentCompanyId) {
+            alert("No active company found. Please reload or select an organization.");
+            return;
+        }
+
         setUploading(true);
+        setUploadStatus("Starting...");
+        isProcessingRef.current = true;
+        
+        // Safety timeout: stop processing if it takes > 20 seconds
+        setTimeout(() => {
+            if (isProcessingRef.current) {
+                isProcessingRef.current = false;
+                setUploading(false);
+                setUploadStatus("");
+                alert("The request timed out. Please ensure you've run the SQL optimization script in Supabase.");
+            }
+        }, 20000);
+
         try {
             let imageUrl = null;
             if (imageFile) {
+                setUploadStatus("Resizing & Optimizing Image...");
                 imageUrl = await resizeImageToBase64(imageFile);
             }
 
+            setUploadStatus("Preparing Data...");
             const pPrice = formData.price ? Number(formData.price) : null;
             const dataToSave = {
-                name: formData.name || '',
-                category: formData.category || 'Uncategorized',
-                description: formData.description || '',
-                dimensions: formData.dimensions || '',
-                price: pPrice
+                name: (formData.name || '').trim(),
+                brand: (formData.brand || '').trim(),
+                category: (formData.category || 'Uncategorized').trim(),
+                description: (formData.description || '').trim(),
+                dimensions: (formData.dimensions || '').trim(),
+                price: pPrice,
+                sizes: formData.sizes ? formData.sizes.split(',').map(s => s.trim()).filter(s => s) : []
             };
 
-            // Retain old image url if editing and no new image was selected
             if (imageUrl) {
                 dataToSave.imageUrl = imageUrl;
             } else if (editingId && formData.imageUrl) {
                 dataToSave.imageUrl = formData.imageUrl;
             }
 
+            setUploadStatus("Connecting to Database...");
+            let result;
             if (editingId) {
-                await updateProduct(currentCompanyId, editingId, dataToSave);
+                result = await updateProduct(currentCompanyId, editingId, dataToSave);
             } else {
-                await addProduct(currentCompanyId, dataToSave);
+                result = await addProduct(currentCompanyId, dataToSave);
             }
+
+            if (!result) {
+                throw new Error("Database check failed. Ensure RLS policies are up to date.");
+            }
+
+            setUploadStatus("Finalizing...");
+            
+            isProcessingRef.current = false;
             resetForm();
             fetchData();
         } catch (e) {
+            isProcessingRef.current = false;
             console.error(e);
-            alert('Error saving product');
+            alert('Error saving product: ' + (e.message || 'Unknown network error'));
         } finally {
+            isProcessingRef.current = false;
+            setUploadStatus("");
             setUploading(false);
         }
     };
@@ -155,6 +212,17 @@ export default function AdminDashboard() {
         if (!window.confirm("Are you sure you want to bulk upload this file?")) return;
 
         setUploading(true);
+        isProcessingRef.current = true;
+
+        // Safety timeout for bulk upload
+        setTimeout(() => {
+            if (isProcessingRef.current) {
+                isProcessingRef.current = false;
+                setUploading(false);
+                alert("Bulk import timed out. Try with a smaller file or check your internet.");
+            }
+        }, 10000);
+
         const reader = new FileReader();
 
         reader.onload = async (event) => {
@@ -176,24 +244,31 @@ export default function AdminDashboard() {
                         category: cols[1] ? String(cols[1]).trim() : 'Uncategorized',
                         description: cols[2] ? String(cols[2]).trim() : '',
                         dimensions: cols[3] ? String(cols[3]).trim() : '',
-                        price: cols[4] ? Number(String(cols[4]).trim()) : null
+                        price: cols[4] ? Number(String(cols[4]).trim()) : null,
+                        brand: cols[5] ? String(cols[5]).trim() : '',
+                        sizes: cols[6] ? String(cols[6]).split(',').map(s => s.trim()).filter(s => s) : []
                     };
                 }).filter(p => p.name);
 
                 if (newProducts.length === 0) {
-                    alert("No valid products found. Ensure Name column is filled.");
+                    isProcessingRef.current = false;
+                    setUploading(false);
+                    alert("No valid products found. Ensure the first column (Name) is filled.");
                     return;
                 }
 
                 await addBulkProducts(currentCompanyId, newProducts);
+                isProcessingRef.current = false;
                 alert(`Successfully imported ${newProducts.length} products!`);
                 fetchData();
             } catch (err) {
+                isProcessingRef.current = false;
                 console.error("Bulk upload failed", err);
                 alert("Bulk upload failed. Ensure the file format is a valid Excel or CSV.");
             } finally {
+                isProcessingRef.current = false;
                 setUploading(false);
-                e.target.value = null; // reset file input
+                if (e.target) e.target.value = null; // reset file input
             }
         };
 
@@ -202,7 +277,7 @@ export default function AdminDashboard() {
 
     const resetForm = () => {
         setEditingId(null);
-        setFormData({ name: '', category: '', description: '', dimensions: '', price: '', imageUrl: null });
+        setFormData({ name: '', brand: '', category: '', description: '', dimensions: '', price: '', sizes: '', imageUrl: null });
         setImageFile(null);
     };
 
@@ -210,10 +285,12 @@ export default function AdminDashboard() {
         setEditingId(product.id);
         setFormData({
             name: product.name || '',
+            brand: product.brand || '',
             category: product.category || 'Uncategorized',
             description: product.description || '',
             dimensions: product.dimensions || '',
             price: product.price || '',
+            sizes: product.sizes ? product.sizes.join(', ') : '',
             imageUrl: product.imageUrl || null
         });
         setImageFile(null);
@@ -356,7 +433,7 @@ export default function AdminDashboard() {
                 <h1 style={{ color: 'var(--color-accent-blue)' }}>System Administration</h1>
                 
                 <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                    {['overview', 'products', 'team', 'suppliers', 'transports', 'brand_registry', 'units', 'forms', 'reconciliation', 'migration'].map(t => (
+                    {['overview', 'products', 'orders', 'team', 'suppliers', 'transports', 'brand_registry', 'units', 'forms', 'reconciliation', 'migration'].map(t => (
                         (t !== 'migration' || isSuperAdmin) && (
                             <button key={t} onClick={() => setActiveTab(t)} className={`btn ${activeTab === t ? 'btn-primary' : 'btn-outline'}`} style={{ fontSize: '0.65rem', padding: '0.3rem 0.5rem' }}>
                                 {t.replace('_', ' ').toUpperCase()}
@@ -365,9 +442,17 @@ export default function AdminDashboard() {
                     ))}
                 </div>
 
-                {/* Bulk Upload Button */}
+                {/* Bulk & Sync Controls */}
                 {activeTab === 'products' && (
-                    <div className="full-width-on-mobile">
+                    <div className="full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <button 
+                            className="btn btn-outline" 
+                            onClick={fetchData} 
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
+                            title="Force refresh data from database"
+                        >
+                            <Download size={18} /> Force Sync
+                        </button>
                         <input
                             type="file"
                             accept=".csv, .xlsx, .xls"
@@ -376,18 +461,30 @@ export default function AdminDashboard() {
                             onChange={handleBulkUpload}
                         />
                         <label htmlFor="csvUpload" className="btn btn-secondary full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer' }}>
-                            <UploadCloud size={18} /> Bulk Import Excel / CSV
+                            <UploadCloud size={18} /> Bulk Import
                         </label>
-                        <p className="hide-on-mobile" style={{ fontSize: '0.7rem', color: 'var(--color-text-light)', marginTop: '0.25rem', textAlign: 'right' }}>
-                            Format: name,category,description,dimensions,price
-                        </p>
                     </div>
                 )}
             </div>
 
 
 
-            {loading || uploading ? <p>{uploading ? "Processing..." : "Loading data..."}</p> : (
+            {loading || uploading ? (
+                <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
+                    <div className="spinner" style={{ border: '4px solid #f3f3f3', borderTop: '4px solid var(--color-primary)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 1rem' }}></div>
+                    <p style={{ color: 'var(--color-text-light)', marginBottom: '1.5rem' }}>
+                        {uploadStatus || (uploading ? "Uploading to secure database..." : "Syncing your latest inventory...")}
+                    </p>
+                    <button 
+                        className="btn btn-outline" 
+                        onClick={() => { setLoading(false); setUploading(false); }}
+                        style={{ fontSize: '0.8rem' }}
+                    >
+                        Skip & Force Dashboard Access
+                    </button>
+                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                </div>
+            ) : (
                 <>
                     {activeTab === 'products' && (
                         <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '1fr 2fr', gap: 'var(--spacing-xl)' }}>
@@ -401,9 +498,19 @@ export default function AdminDashboard() {
                                         <label>Product Name *</label>
                                         <input className="input-field" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
                                     </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div className="input-group">
+                                            <label>Brand</label>
+                                            <input className="input-field" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} placeholder="e.g. Tata Steel" />
+                                        </div>
+                                        <div className="input-group">
+                                            <label>Category *</label>
+                                            <input className="input-field" required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                                        </div>
+                                    </div>
                                     <div className="input-group">
-                                        <label>Category *</label>
-                                        <input className="input-field" required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                                        <label>Available Sizes (comma separated)</label>
+                                        <input className="input-field" value={formData.sizes} onChange={e => setFormData({ ...formData, sizes: e.target.value })} placeholder="e.g. 10mm, 12mm, 16mm" />
                                     </div>
                                     <div className="input-group">
                                         <label>Description</label>

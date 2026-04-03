@@ -7,7 +7,7 @@ import AuthModal from './AuthModal';
 
 export default function Navbar({ toggleSidebar }) {
     const { 
-        currentUser, userData, isAdmin, companies, 
+        currentUser, userData, isAdmin, isSuperAdmin, companies, 
         currentCompanyId, switchCompany, logout 
     } = useAuth();
     const { cartCount } = useCart();
@@ -84,31 +84,35 @@ export default function Navbar({ toggleSidebar }) {
 
                 {/* Right Side: Navigation Links & Auth */}
                 <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
-                    {companies.length > 0 && (
+                    {(companies.length > 0 || isSuperAdmin) && (
                         <div className="hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <select 
-                                value={currentCompanyId || ''} 
-                                onChange={(e) => switchCompany(e.target.value)}
-                                style={{ 
-                                    padding: '0.25rem 0.5rem', 
-                                    borderRadius: '0.5rem', 
-                                    border: '1px solid #cbd5e1', 
-                                    fontSize: '0.75rem', 
-                                    background: '#f8fafc',
-                                    cursor: 'pointer',
-                                    fontWeight: '600',
-                                    color: '#475569',
-                                    maxWidth: '100px'
-                                }}
-                            >
-                                <option value="" disabled>Switch</option>
-                                {companies.map(c => (
-                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                            </select>
-                            <Link to="/setup-company" title="Add Company" style={{ color: 'var(--color-accent-orange)', display: 'flex' }}>
-                                <Plus size={18} />
-                            </Link>
+                            {companies.length > 0 && (
+                                <select 
+                                    value={currentCompanyId || ''} 
+                                    onChange={(e) => switchCompany(e.target.value)}
+                                    style={{ 
+                                        padding: '0.25rem 0.5rem', 
+                                        borderRadius: '0.5rem', 
+                                        border: '1px solid #cbd5e1', 
+                                        fontSize: '0.75rem', 
+                                        background: '#f8fafc',
+                                        cursor: 'pointer',
+                                        fontWeight: '600',
+                                        color: '#475569',
+                                        maxWidth: '100px'
+                                    }}
+                                >
+                                    <option value="" disabled>Switch</option>
+                                    {companies.map(c => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                            )}
+                            {(isSuperAdmin || isAdmin) && (
+                                <Link to="/setup-company" title="Add Company" style={{ color: 'var(--color-accent-orange)', display: 'flex' }}>
+                                    <Plus size={18} />
+                                </Link>
+                            )}
                         </div>
                     )}
 

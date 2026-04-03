@@ -16,27 +16,27 @@ export function CartProvider({ children }) {
         setCartItems([]);
     }, [currentCompanyId]);
 
-    const addToCart = (product, quantity) => {
+    const addToCart = (product, quantity, size = null) => {
         setCartItems(prev => {
-            const existing = prev.find(item => item.id === product.id);
+            const existing = prev.find(item => item.id === product.id && item.selectedSize === size);
             if (existing) {
                 return prev.map(item =>
-                    item.id === product.id
+                    (item.id === product.id && item.selectedSize === size)
                         ? { ...item, quantity: item.quantity + quantity }
                         : item
                 );
             }
-            return [...prev, { ...product, quantity }];
+            return [...prev, { ...product, quantity, selectedSize: size }];
         });
     };
-
-    const removeFromCart = (productId) => {
-        setCartItems(prev => prev.filter(item => item.id !== productId));
+    
+    const removeFromCart = (productId, size = null) => {
+        setCartItems(prev => prev.filter(item => !(item.id === productId && item.selectedSize === size)));
     };
-
-    const updateQuantity = (productId, quantity) => {
+    
+    const updateQuantity = (productId, quantity, size = null) => {
         setCartItems(prev => prev.map(item =>
-            item.id === productId ? { ...item, quantity } : item
+            (item.id === productId && item.selectedSize === size) ? { ...item, quantity } : item
         ));
     };
 

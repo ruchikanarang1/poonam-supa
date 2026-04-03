@@ -1,20 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Phone, Mail, Eye, EyeOff, Loader2, ArrowRight, Smartphone, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Phone, Loader2, ArrowRight, Smartphone, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { RecaptchaVerifier } from '../lib/firebase';
-import { auth } from '../lib/firebase';
 
 export default function AuthModal({ isOpen, onClose }) {
     const { loginWithGoogle, loginWithPhone, ensureUserProfile } = useAuth();
-    
-    // UI State
+
     const [step, setStep] = useState('options'); // 'options', 'phone', 'otp'
     const [phoneNumber, setPhoneNumber] = useState('');
     const [otp, setOtp] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [confirmationResult, setConfirmationResult] = useState(null);
-    
+
     useEffect(() => {
         if (!isOpen) {
             setStep('options');
@@ -24,76 +21,37 @@ export default function AuthModal({ isOpen, onClose }) {
             setConfirmationResult(null);
             setLoading(false);
         }
-
-        return () => {
-            if (window.recaptchaVerifier) {
-                try {
-                    window.recaptchaVerifier.clear();
-                } catch (e) {}
-                window.recaptchaVerifier = null;
-            }
-        };
     }, [isOpen]);
-
-    const initRecaptcha = () => {
-        try {
-            if (!window.recaptchaVerifier) {
-                window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-                    'size': 'invisible',
-                    'callback': (response) => {
-                        // reCAPTCHA solved
-                    },
-                    'expired-callback': () => {
-                        // Response expired. Ask user to solve reCAPTCHA again.
-                        if (window.recaptchaVerifier) {
-                            window.recaptchaVerifier.clear();
-                            window.recaptchaVerifier = null;
-                        }
-                    }
-                });
-            }
-        } catch (err) {
-            console.error("Recaptcha Init Error", err);
-        }
-    };
 
     const handleGoogleLogin = async () => {
         setLoading(true);
         setError('');
         try {
             await loginWithGoogle();
+            // Google OAuth redirects the page — onClose won't be needed
+            // but call it in case the redirect doesn't happen immediately
             onClose();
         } catch (err) {
             setError(err.message);
-        } finally {
             setLoading(false);
         }
     };
 
     const handleSendOtp = async (e) => {
         e.preventDefault();
-        // Clean phone number (remove spaces, etc) and check length
         const cleanNumber = phoneNumber.replace(/\D/g, '');
         if (cleanNumber.length !== 10) return setError('Please enter a valid 10-digit number');
-        
+
         const fullNumber = `+91${cleanNumber}`;
-        
         setLoading(true);
         setError('');
         try {
-            initRecaptcha();
-            const result = await loginWithPhone(fullNumber, window.recaptchaVerifier);
+            // loginWithPhone now returns a confirmationResult-compatible object
+            const result = await loginWithPhone(fullNumber);
             setConfirmationResult(result);
             setStep('otp');
         } catch (err) {
-            setError(err.message);
-            // Reset recaptcha if error
-            if (window.recaptchaVerifier) {
-                try {
-                    window.recaptchaVerifier.clear();
-                } catch (e) {}
-                window.recaptchaVerifier = null;
-            }
+            setError(err.message || 'Failed to send OTP. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -106,8 +64,8 @@ export default function AuthModal({ isOpen, onClose }) {
         setLoading(true);
         setError('');
         try {
-            const userCredential = await confirmationResult.confirm(otp);
-            await ensureUserProfile(userCredential.user);
+            const result = await confirmationResult.confirm(otp);
+            if (result?.user) await ensureUserProfile(result.user);
             onClose();
         } catch (err) {
             setError('Invalid code. Please try again.');
@@ -139,7 +97,7 @@ export default function AuthModal({ isOpen, onClose }) {
                 </button>
 
                 <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-                    <div style={{ 
+                    <div style={{
                         width: '56px', height: '56px', background: 'var(--color-secondary)',
                         borderRadius: '14px', display: 'flex', alignItems: 'center',
                         justifyContent: 'center', margin: '0 auto 1rem', color: 'var(--color-accent-blue)'
@@ -150,12 +108,12 @@ export default function AuthModal({ isOpen, onClose }) {
                         {step === 'otp' ? 'Verification' : 'Sign In'}
                     </h2>
                     <p style={{ color: '#64748b', fontSize: '0.9rem' }}>
-                        {step === 'otp' ? `Enter the code sent to ${phoneNumber}` : 'Access your Poonam Logistics dashboard'}
+                        {step === 'otp' ? `Enter the code sent to +91${phoneNumber}` : 'Access your Poonam Logistics dashboard'}
                     </p>
                 </div>
 
                 {error && (
-                    <div style={{ 
+                    <div style={{
                         backgroundColor: '#fff1f0', border: '1px solid #ffa39e',
                         color: '#cf1322', padding: '0.75rem', borderRadius: '8px',
                         fontSize: '0.85rem', marginBottom: '1.5rem', textAlign: 'center'
@@ -166,28 +124,30 @@ export default function AuthModal({ isOpen, onClose }) {
 
                 {step === 'options' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <button 
-                            onClick={handleGoogleLogin} 
+                        <button
+                            onClick={handleGoogleLogin}
                             disabled={loading}
-                            className="btn btn-outline" 
-                            style={{ 
-                                width: '100%', padding: '0.75rem', gap: '0.75rem', 
-                                border: '1px solid #e2e8f0', background: 'white' 
+                            className="btn btn-outline"
+                            style={{
+                                width: '100%', padding: '0.75rem', gap: '0.75rem',
+                                border: '1px solid #e2e8f0', background: 'white'
                             }}
                         >
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="Google" />
+                            {loading ? <Loader2 size={18} className="animate-spin" /> : (
+                                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="Google" />
+                            )}
                             Continue with Google
                         </button>
-                        
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
                             <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
                             <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>OR</span>
                             <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }}></div>
                         </div>
 
-                        <button 
+                        <button
                             onClick={() => setStep('phone')}
-                            className="btn btn-secondary" 
+                            className="btn btn-secondary"
                             style={{ width: '100%', padding: '0.75rem', gap: '0.75rem' }}
                         >
                             <Phone size={18} />
@@ -201,14 +161,14 @@ export default function AuthModal({ isOpen, onClose }) {
                         <div className="input-group">
                             <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>PHONE NUMBER</label>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                <div style={{ 
-                                    padding: '0 12px', background: '#f8fafc', border: '1px solid #e2e8f0', 
-                                    borderRadius: '8px', display: 'flex', alignItems: 'center', 
-                                    fontSize: '0.9rem', fontWeight: 700, color: '#475569' 
+                                <div style={{
+                                    padding: '0 12px', background: '#f8fafc', border: '1px solid #e2e8f0',
+                                    borderRadius: '8px', display: 'flex', alignItems: 'center',
+                                    fontSize: '0.9rem', fontWeight: 700, color: '#475569'
                                 }}>
                                     +91
                                 </div>
-                                <input 
+                                <input
                                     className="input-field"
                                     type="tel"
                                     maxLength="10"
@@ -221,20 +181,20 @@ export default function AuthModal({ isOpen, onClose }) {
                                 />
                             </div>
                         </div>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={loading}
-                            className="btn btn-primary" 
+                            className="btn btn-primary"
                             style={{ width: '100%', marginTop: '1rem', gap: '0.5rem' }}
                         >
                             {loading ? <Loader2 size={18} className="animate-spin" /> : 'Send OTP'}
                             {!loading && <ArrowRight size={18} />}
                         </button>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => setStep('options')}
-                            style={{ 
-                                width: '100%', background: 'none', border: 'none', 
+                            style={{
+                                width: '100%', background: 'none', border: 'none',
                                 marginTop: '1rem', color: '#64748b', fontSize: '0.85rem', cursor: 'pointer'
                             }}
                         >
@@ -247,7 +207,7 @@ export default function AuthModal({ isOpen, onClose }) {
                     <form onSubmit={handleVerifyOtp}>
                         <div className="input-group">
                             <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>6-DIGIT CODE</label>
-                            <input 
+                            <input
                                 className="input-field"
                                 type="text"
                                 maxLength="6"
@@ -259,19 +219,19 @@ export default function AuthModal({ isOpen, onClose }) {
                                 required
                             />
                         </div>
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             disabled={loading}
-                            className="btn btn-primary" 
+                            className="btn btn-primary"
                             style={{ width: '100%', marginTop: '1rem' }}
                         >
                             {loading ? <Loader2 size={18} className="animate-spin" /> : 'Verify & Sign In'}
                         </button>
-                        <button 
+                        <button
                             type="button"
                             onClick={() => setStep('phone')}
-                            style={{ 
-                                width: '100%', background: 'none', border: 'none', 
+                            style={{
+                                width: '100%', background: 'none', border: 'none',
                                 marginTop: '1rem', color: '#64748b', fontSize: '0.85rem', cursor: 'pointer'
                             }}
                         >
@@ -279,18 +239,12 @@ export default function AuthModal({ isOpen, onClose }) {
                         </button>
                     </form>
                 )}
-
-                {/* HIDDEN RECAPTCHA CONTAINER */}
-                <div id="recaptcha-container"></div>
             </div>
+
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .animate-spin { animation: spin 1s linear infinite; }
+            `}</style>
         </div>
     );
 }
-
-// Add CSS for spinner
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    .animate-spin { animation: spin 1s linear infinite; }
-`;
-document.head.append(style);

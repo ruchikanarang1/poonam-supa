@@ -66,7 +66,10 @@ export default function AdminHome() {
                 pendingCustomerOrders: customerOrders.filter(o => o.status === 'pending').length,
             });
             setLastUpdated(new Date());
-        } catch (err) { console.error(err); }
+        } catch (err) { 
+            console.error(err); 
+            alert(`Error loading dashboard: ${err.message}. Please check your connection and try again.`);
+        }
         finally { setLoading(false); }
     };
 

@@ -12,13 +12,28 @@ export default function ProfileSetup() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!companyName.trim()) return;
+        
+        console.log("[SETUP] Starting company creation for user:", currentUser?.uid);
         setLoading(true);
+
+        const timeout = setTimeout(() => {
+            console.error("[SETUP] Creation timed out after 20 seconds.");
+            setLoading(false);
+            alert("Connection timeout while creating organization. Please check your internet or Supabase logs.");
+        }, 20000);
+
         try {
-            await createCompany(currentUser.uid, companyName, location);
+            console.log("[SETUP] Calling createCompany...");
+            const compId = await createCompany(currentUser.uid, companyName, location);
+            console.log("[SETUP] Success! Company ID:", compId);
+            
+            clearTimeout(timeout);
+            console.log("[SETUP] Reloading page to apply changes...");
             window.location.reload(); 
         } catch (err) {
-            console.error(err);
-            alert("Failed to setup your company. Please try again.");
+            clearTimeout(timeout);
+            console.error("[SETUP] ERROR:", err);
+            alert("Failed to setup your company: " + (err.message || JSON.stringify(err)));
         } finally {
             setLoading(false);
         }
