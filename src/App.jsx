@@ -10,12 +10,15 @@ import LogisticsPortal from './pages/LogisticsPortal';
 import TicketsPortal from './pages/TicketsPortal';
 import PurchaseOrders from './pages/PurchaseOrders';
 import ProfileSetup from './components/ProfileSetup';
-import LogisticsArchive from './components/admin/LogisticsArchive';
+import Reports from './pages/Reports';
 import GoodsCheckIn from './pages/GoodsCheckIn';
 import Home from './pages/Home';
 import LandingPage from './pages/LandingPage';
 import AccessPending from './pages/AccessPending';
 import CustomerStore from './pages/CustomerStore';
+import CustomerOrders from './pages/CustomerOrders';
+import CustomerPayments from './pages/CustomerPayments';
+import ManageCustomers from './pages/ManageCustomers';
 import { useAuth } from './contexts/AuthContext';
 
 // ── Full-screen layout for ERP (with navbar + sidebar) ──────────────────────
@@ -50,8 +53,11 @@ function ERPShell() {
             <Route path="/bills"              element={<LogisticsPortal type="bills" title="Bill Entry" />} />
             <Route path="/tickets"            element={<TicketsPortal />} />
             <Route path="/purchase-orders"    element={<PurchaseOrders />} />
+            <Route path="/customer-orders"    element={<CustomerOrders />} />
+            <Route path="/customer-payments"  element={<CustomerPayments />} />
+            <Route path="/manage-customers"   element={<ManageCustomers />} />
             <Route path="/check-in"           element={<GoodsCheckIn />} />
-            <Route path="/logistics-history"  element={<LogisticsArchive />} />
+            <Route path="/logistics-history"  element={<Reports />} />
             <Route path="/setup-company"      element={<ProfileSetup />} />
             {/* Catch-all inside ERP */}
             <Route path="*"                   element={<Navigate to="/" replace />} />

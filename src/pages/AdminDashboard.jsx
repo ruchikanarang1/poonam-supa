@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { 
     getProducts, addProduct, updateProduct, deleteProduct, 
-    getOrders, uploadImage, addBulkProducts, getGlobalUnits
+    getOrders, uploadImage, addBulkProducts, getGlobalUnits,
+    getGlobalCategories, saveGlobalCategories, saveGlobalUnits,
+    getVendorBrandRegistry
 } from '../lib/db';
-import { Trash2, Edit3, Plus, UploadCloud, Download } from 'lucide-react';
+import { Trash2, Edit3, Plus, UploadCloud, Download, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import TeamManagement from '../components/admin/TeamManagement';
 import FormBuilder from '../components/admin/FormBuilder';
@@ -31,6 +33,9 @@ export default function AdminDashboard() {
     const isProcessingRef = useRef(false);
     const [units, setUnits] = useState([]);
     const [newUnit, setNewUnit] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [newCategory, setNewCategory] = useState('');
+    const [brands, setBrands] = useState([]);
 
     // Product Form State
     const [editingId, setEditingId] = useState(null);
@@ -39,14 +44,18 @@ export default function AdminDashboard() {
         brand: '', 
         category: '', 
         description: '', 
-        dimensions: '', 
         price: '', 
-        sizes: '', 
+        sizes: '',  // Keep for backward compatibility
         imageUrl: null 
     });
+    const [sizeVariants, setSizeVariants] = useState([{ id: Date.now(), size: '', weight: '', dimensions: '' }]);
     const [imageFile, setImageFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState("");
+    const [categoryInput, setCategoryInput] = useState('');
+    const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+    const [brandInput, setBrandInput] = useState('');
+    const [showBrandDropdown, setShowBrandDropdown] = useState(false);
 
     // Multi-select State
     const [selectedIds, setSelectedIds] = useState(new Set());
@@ -71,12 +80,19 @@ export default function AdminDashboard() {
             const pPromise = getProducts(currentCompanyId).catch(e => (console.error("Products Load Error:", e), []));
             const oPromise = getOrders(currentCompanyId).catch(e => (console.error("Orders Load Error:", e), []));
             const uPromise = getGlobalUnits(currentCompanyId).catch(e => (console.error("Units Load Error:", e), []));
+            const cPromise = getGlobalCategories(currentCompanyId).catch(e => (console.error("Categories Load Error:", e), []));
+            const bPromise = getVendorBrandRegistry(currentCompanyId).catch(e => (console.error("Brands Load Error:", e), []));
 
-            const [pData, oData, uData] = await Promise.all([pPromise, oPromise, uPromise]);
+            const [pData, oData, uData, cData, bData] = await Promise.all([pPromise, oPromise, uPromise, cPromise, bPromise]);
             
             setProducts(pData || []);
             setOrders(oData || []);
             setUnits(uData || []);
+            setCategories(cData || []);
+            
+            // Extract unique brand names from vendor-brand registry
+            const uniqueBrands = [...new Set((bData || []).map(b => b.brand_name).filter(b => b))].sort();
+            setBrands(uniqueBrands);
         } catch (err) {
             console.error("Global Fetch Error:", err);
         } finally {
@@ -138,68 +154,92 @@ export default function AdminDashboard() {
             return;
         }
 
+        console.log('[Product Submit] Starting...');
         setUploading(true);
         setUploadStatus("Starting...");
-        isProcessingRef.current = true;
-        
-        // Safety timeout: stop processing if it takes > 20 seconds
-        setTimeout(() => {
-            if (isProcessingRef.current) {
-                isProcessingRef.current = false;
-                setUploading(false);
-                setUploadStatus("");
-                alert("The request timed out. Please ensure you've run the SQL optimization script in Supabase.");
-            }
-        }, 20000);
 
         try {
             let imageUrl = null;
             if (imageFile) {
-                setUploadStatus("Resizing & Optimizing Image...");
+                console.log('[Product Submit] Processing image...');
+                setUploadStatus("Processing image...");
                 imageUrl = await resizeImageToBase64(imageFile);
+                console.log('[Product Submit] Image processed');
             }
 
-            setUploadStatus("Preparing Data...");
+            console.log('[Product Submit] Preparing data...');
+            setUploadStatus("Saving product...");
             const pPrice = formData.price ? Number(formData.price) : null;
+            
+            // Prepare size variants - filter out empty ones
+            const cleanedSizeVariants = sizeVariants
+                .filter(v => v.size.trim())
+                .map(({ id, ...rest }) => rest); // Remove the id field
+            
             const dataToSave = {
                 name: (formData.name || '').trim(),
                 brand: (formData.brand || '').trim(),
                 category: (formData.category || 'Uncategorized').trim(),
                 description: (formData.description || '').trim(),
-                dimensions: (formData.dimensions || '').trim(),
                 price: pPrice,
-                sizes: formData.sizes ? formData.sizes.split(',').map(s => s.trim()).filter(s => s) : []
+                size_variants: cleanedSizeVariants,
+                sizes: cleanedSizeVariants.map(v => v.size)
             };
 
             if (imageUrl) {
-                dataToSave.imageUrl = imageUrl;
+                dataToSave.image_url = imageUrl;
             } else if (editingId && formData.imageUrl) {
-                dataToSave.imageUrl = formData.imageUrl;
+                dataToSave.image_url = formData.imageUrl;
             }
 
-            setUploadStatus("Connecting to Database...");
+            console.log('[Product Submit] Data to save:', dataToSave);
+            console.log('[Product Submit] Company ID:', currentCompanyId);
+            console.log('[Product Submit] Calling database...');
+
             let result;
+            const startTime = Date.now();
             if (editingId) {
                 result = await updateProduct(currentCompanyId, editingId, dataToSave);
             } else {
                 result = await addProduct(currentCompanyId, dataToSave);
             }
+            const endTime = Date.now();
+            console.log(`[Product Submit] Database call completed in ${endTime - startTime}ms`);
 
             if (!result) {
-                throw new Error("Database check failed. Ensure RLS policies are up to date.");
+                throw new Error("Failed to save product. Check console for details.");
             }
 
-            setUploadStatus("Finalizing...");
+            console.log('[Product Submit] Success! Result:', result);
             
-            isProcessingRef.current = false;
+            // Auto-save new category if it doesn't exist
+            const categoryToSave = dataToSave.category.trim();
+            if (categoryToSave && !categories.includes(categoryToSave)) {
+                console.log('[Product Submit] Adding new category:', categoryToSave);
+                const updatedCategories = [...categories, categoryToSave].sort();
+                await saveGlobalCategories(currentCompanyId, updatedCategories);
+                setCategories(updatedCategories);
+            }
+            
             resetForm();
-            fetchData();
+            await fetchData();
+            alert(editingId ? 'Product updated successfully!' : 'Product added successfully!');
         } catch (e) {
-            isProcessingRef.current = false;
-            console.error(e);
-            alert('Error saving product: ' + (e.message || 'Unknown network error'));
+            console.error('[Product Submit] ERROR:', e);
+            let errorMsg = 'Error saving product: ';
+            
+            if (e.message.includes('size_variants')) {
+                errorMsg += 'The size_variants column is missing. Please run the SQL migration.';
+            } else if (e.message.includes('is_dead_stock')) {
+                errorMsg += 'The is_dead_stock column is missing. Please run the SQL migration.';
+            } else if (e.message.includes('policy')) {
+                errorMsg += 'Permission denied. RLS policies may need optimization. Check OPTIMIZE_RLS_POLICIES.sql';
+            } else {
+                errorMsg += e.message || 'Unknown error';
+            }
+            
+            alert(errorMsg);
         } finally {
-            isProcessingRef.current = false;
             setUploadStatus("");
             setUploading(false);
         }
@@ -212,16 +252,6 @@ export default function AdminDashboard() {
         if (!window.confirm("Are you sure you want to bulk upload this file?")) return;
 
         setUploading(true);
-        isProcessingRef.current = true;
-
-        // Safety timeout for bulk upload
-        setTimeout(() => {
-            if (isProcessingRef.current) {
-                isProcessingRef.current = false;
-                setUploading(false);
-                alert("Bulk import timed out. Try with a smaller file or check your internet.");
-            }
-        }, 10000);
 
         const reader = new FileReader();
 
@@ -232,10 +262,7 @@ export default function AdminDashboard() {
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
 
-                // Convert sheet to array of arrays
                 const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-                // Assume first row is header limit
                 const dataRows = rows.slice(1);
 
                 const newProducts = dataRows.map(cols => {
@@ -251,35 +278,83 @@ export default function AdminDashboard() {
                 }).filter(p => p.name);
 
                 if (newProducts.length === 0) {
-                    isProcessingRef.current = false;
                     setUploading(false);
                     alert("No valid products found. Ensure the first column (Name) is filled.");
                     return;
                 }
 
                 await addBulkProducts(currentCompanyId, newProducts);
-                isProcessingRef.current = false;
                 alert(`Successfully imported ${newProducts.length} products!`);
-                fetchData();
+                await fetchData();
             } catch (err) {
-                isProcessingRef.current = false;
                 console.error("Bulk upload failed", err);
-                alert("Bulk upload failed. Ensure the file format is a valid Excel or CSV.");
+                alert("Bulk upload failed: " + (err.message || "Unknown error"));
             } finally {
-                isProcessingRef.current = false;
                 setUploading(false);
-                if (e.target) e.target.value = null; // reset file input
+                if (e.target) e.target.value = null;
             }
         };
 
         reader.readAsBinaryString(file);
     };
 
+    // Size variant helpers
+    const addSizeVariant = () => {
+        setSizeVariants([...sizeVariants, { id: Date.now(), size: '', weight: '', dimensions: '' }]);
+    };
+
+    const removeSizeVariant = (id) => {
+        if (sizeVariants.length > 1) {
+            setSizeVariants(sizeVariants.filter(v => v.id !== id));
+        }
+    };
+
+    const updateSizeVariant = (id, field, value) => {
+        setSizeVariants(sizeVariants.map(v => v.id === id ? { ...v, [field]: value } : v));
+    };
+
     const resetForm = () => {
         setEditingId(null);
-        setFormData({ name: '', brand: '', category: '', description: '', dimensions: '', price: '', sizes: '', imageUrl: null });
+        setFormData({ name: '', brand: '', category: '', description: '', price: '', sizes: '', imageUrl: null });
+        setSizeVariants([{ id: Date.now(), size: '', weight: '', dimensions: '' }]);
         setImageFile(null);
+        setCategoryInput('');
+        setShowCategoryDropdown(false);
+        setBrandInput('');
+        setShowBrandDropdown(false);
     };
+
+    const handleCategoryInputChange = (value) => {
+        setCategoryInput(value);
+        setFormData({ ...formData, category: value });
+        setShowCategoryDropdown(value.length > 0);
+    };
+
+    const handleCategorySelect = (category) => {
+        setCategoryInput(category);
+        setFormData({ ...formData, category });
+        setShowCategoryDropdown(false);
+    };
+
+    const handleBrandInputChange = (value) => {
+        setBrandInput(value);
+        setFormData({ ...formData, brand: value });
+        setShowBrandDropdown(value.length > 0);
+    };
+
+    const handleBrandSelect = (brand) => {
+        setBrandInput(brand);
+        setFormData({ ...formData, brand });
+        setShowBrandDropdown(false);
+    };
+
+    const filteredCategories = categories.filter(cat => 
+        cat.toLowerCase().includes(categoryInput.toLowerCase())
+    );
+
+    const filteredBrands = brands.filter(brand => 
+        brand.toLowerCase().includes(brandInput.toLowerCase())
+    );
 
     const handleEdit = (product) => {
         setEditingId(product.id);
@@ -288,11 +363,29 @@ export default function AdminDashboard() {
             brand: product.brand || '',
             category: product.category || 'Uncategorized',
             description: product.description || '',
-            dimensions: product.dimensions || '',
             price: product.price || '',
             sizes: product.sizes ? product.sizes.join(', ') : '',
             imageUrl: product.imageUrl || null
         });
+        
+        setCategoryInput(product.category || 'Uncategorized');
+        setBrandInput(product.brand || '');
+        
+        // Load size variants if they exist, otherwise create from old sizes format
+        if (product.size_variants && product.size_variants.length > 0) {
+            setSizeVariants(product.size_variants.map((v, idx) => ({ ...v, id: Date.now() + idx })));
+        } else if (product.sizes && product.sizes.length > 0) {
+            // Migrate old format to new
+            setSizeVariants(product.sizes.map((size, idx) => ({
+                id: Date.now() + idx,
+                size: size,
+                weight: '',
+                dimensions: product.dimensions || ''
+            })));
+        } else {
+            setSizeVariants([{ id: Date.now(), size: '', weight: '', dimensions: '' }]);
+        }
+        
         setImageFile(null);
     };
 
@@ -319,6 +412,42 @@ export default function AdminDashboard() {
             } catch (e) {
                 console.error(e);
                 alert('Error deleting products');
+            }
+        }
+    };
+
+    const handleMarkAsDeadStock = async () => {
+        if (selectedIds.size === 0) return;
+        if (window.confirm(`Mark ${selectedIds.size} product(s) as dead stock? This will flag them for clearance.`)) {
+            try {
+                const updatePromises = Array.from(selectedIds).map(id => 
+                    updateProduct(currentCompanyId, id, { is_dead_stock: true })
+                );
+                await Promise.all(updatePromises);
+                setSelectedIds(new Set());
+                fetchData();
+                alert(`${selectedIds.size} product(s) marked as dead stock successfully!`);
+            } catch (e) {
+                console.error(e);
+                alert('Error marking products as dead stock');
+            }
+        }
+    };
+
+    const handleRemoveFromDeadStock = async () => {
+        if (selectedIds.size === 0) return;
+        if (window.confirm(`Remove ${selectedIds.size} product(s) from dead stock?`)) {
+            try {
+                const updatePromises = Array.from(selectedIds).map(id => 
+                    updateProduct(currentCompanyId, id, { is_dead_stock: false })
+                );
+                await Promise.all(updatePromises);
+                setSelectedIds(new Set());
+                fetchData();
+                alert(`${selectedIds.size} product(s) removed from dead stock successfully!`);
+            } catch (e) {
+                console.error(e);
+                alert('Error removing products from dead stock');
             }
         }
     };
@@ -428,31 +557,26 @@ export default function AdminDashboard() {
     };
 
     return (
-        <div className="container" style={{ padding: 'var(--spacing-xl) 0' }}>
-            <div className="stack-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
-                <h1 style={{ color: 'var(--color-accent-blue)' }}>System Administration</h1>
+        <div className="container" style={{ padding: 'var(--spacing-md) 0' }}>
+            <div className="stack-on-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
+                <h2 style={{ color: 'var(--color-accent-blue)', margin: 0, fontSize: '1.5rem' }}>System Administration</h2>
                 
                 <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                    {['overview', 'products', 'orders', 'team', 'suppliers', 'transports', 'brand_registry', 'units', 'forms', 'reconciliation', 'migration'].map(t => (
-                        (t !== 'migration' || isSuperAdmin) && (
-                            <button key={t} onClick={() => setActiveTab(t)} className={`btn ${activeTab === t ? 'btn-primary' : 'btn-outline'}`} style={{ fontSize: '0.65rem', padding: '0.3rem 0.5rem' }}>
-                                {t.replace('_', ' ').toUpperCase()}
-                            </button>
-                        )
+                    {['units', 'forms', 'reconciliation'].map(t => (
+                        <button key={t} onClick={() => setActiveTab(t)} className={`btn ${activeTab === t ? 'btn-primary' : 'btn-outline'}`} style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}>
+                            {t.replace('_', ' ').toUpperCase()}
+                        </button>
                     ))}
+                    {isSuperAdmin && (
+                        <button onClick={() => setActiveTab('migration')} className={`btn ${activeTab === 'migration' ? 'btn-primary' : 'btn-outline'}`} style={{ fontSize: '0.7rem', padding: '0.3rem 0.6rem' }}>
+                            MIGRATION
+                        </button>
+                    )}
                 </div>
 
-                {/* Bulk & Sync Controls */}
+                {/* Bulk Import Control */}
                 {activeTab === 'products' && (
                     <div className="full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                        <button 
-                            className="btn btn-outline" 
-                            onClick={fetchData} 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
-                            title="Force refresh data from database"
-                        >
-                            <Download size={18} /> Force Sync
-                        </button>
                         <input
                             type="file"
                             accept=".csv, .xlsx, .xls"
@@ -460,8 +584,8 @@ export default function AdminDashboard() {
                             style={{ display: 'none' }}
                             onChange={handleBulkUpload}
                         />
-                        <label htmlFor="csvUpload" className="btn btn-secondary full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer' }}>
-                            <UploadCloud size={18} /> Bulk Import
+                        <label htmlFor="csvUpload" className="btn btn-secondary full-width-on-mobile" style={{ display: 'flex', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', padding: '0.4rem 0.7rem' }}>
+                            <UploadCloud size={16} /> Bulk Import
                         </label>
                     </div>
                 )}
@@ -501,24 +625,167 @@ export default function AdminDashboard() {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                         <div className="input-group">
                                             <label>Brand</label>
-                                            <input className="input-field" value={formData.brand} onChange={e => setFormData({ ...formData, brand: e.target.value })} placeholder="e.g. Tata Steel" />
+                                            <div style={{ position: 'relative' }}>
+                                                <input 
+                                                    className="input-field" 
+                                                    value={brandInput} 
+                                                    onChange={e => handleBrandInputChange(e.target.value)}
+                                                    onFocus={() => setShowBrandDropdown(brandInput.length > 0)}
+                                                    onBlur={() => setTimeout(() => setShowBrandDropdown(false), 200)}
+                                                    placeholder="e.g. Tata Steel"
+                                                />
+                                                {showBrandDropdown && (
+                                                    <div style={{ 
+                                                        position: 'absolute', 
+                                                        top: '100%', 
+                                                        left: 0, 
+                                                        right: 0, 
+                                                        background: 'white', 
+                                                        border: '1px solid #e2e8f0', 
+                                                        borderRadius: '4px', 
+                                                        maxHeight: '200px', 
+                                                        overflowY: 'auto', 
+                                                        zIndex: 1000,
+                                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                                    }}>
+                                                        {filteredBrands.length > 0 ? (
+                                                            filteredBrands.map(brand => (
+                                                                <div 
+                                                                    key={brand}
+                                                                    onClick={() => handleBrandSelect(brand)}
+                                                                    style={{ 
+                                                                        padding: '0.5rem', 
+                                                                        cursor: 'pointer',
+                                                                        borderBottom: '1px solid #f1f3f5'
+                                                                    }}
+                                                                    onMouseEnter={e => e.target.style.background = '#f8fafc'}
+                                                                    onMouseLeave={e => e.target.style.background = 'white'}
+                                                                >
+                                                                    {brand}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div style={{ padding: '0.5rem', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                Type to add "{brandInput}" as new brand
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="input-group">
                                             <label>Category *</label>
-                                            <input className="input-field" required value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                                            <div style={{ position: 'relative' }}>
+                                                <input 
+                                                    className="input-field" 
+                                                    required 
+                                                    value={categoryInput} 
+                                                    onChange={e => handleCategoryInputChange(e.target.value)}
+                                                    onFocus={() => setShowCategoryDropdown(categoryInput.length > 0)}
+                                                    onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
+                                                    placeholder="Type to search or add new"
+                                                />
+                                                {showCategoryDropdown && (
+                                                    <div style={{ 
+                                                        position: 'absolute', 
+                                                        top: '100%', 
+                                                        left: 0, 
+                                                        right: 0, 
+                                                        background: 'white', 
+                                                        border: '1px solid #e2e8f0', 
+                                                        borderRadius: '4px', 
+                                                        maxHeight: '200px', 
+                                                        overflowY: 'auto', 
+                                                        zIndex: 1000,
+                                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                                    }}>
+                                                        {filteredCategories.length > 0 ? (
+                                                            filteredCategories.map(cat => (
+                                                                <div 
+                                                                    key={cat}
+                                                                    onClick={() => handleCategorySelect(cat)}
+                                                                    style={{ 
+                                                                        padding: '0.5rem', 
+                                                                        cursor: 'pointer',
+                                                                        borderBottom: '1px solid #f1f3f5'
+                                                                    }}
+                                                                    onMouseEnter={e => e.target.style.background = '#f8fafc'}
+                                                                    onMouseLeave={e => e.target.style.background = 'white'}
+                                                                >
+                                                                    {cat}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <div style={{ padding: '0.5rem', color: '#64748b', fontSize: '0.85rem' }}>
+                                                                Press Enter to add "{categoryInput}" as new category
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+                                    
+                                    {/* Size Variants Section */}
                                     <div className="input-group">
-                                        <label>Available Sizes (comma separated)</label>
-                                        <input className="input-field" value={formData.sizes} onChange={e => setFormData({ ...formData, sizes: e.target.value })} placeholder="e.g. 10mm, 12mm, 16mm" />
+                                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                            <span>Size Variants</span>
+                                            <button type="button" onClick={addSizeVariant} className="btn btn-outline" style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}>
+                                                + Add
+                                            </button>
+                                        </label>
+                                        <div style={{ background: '#f8fafc', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                                            {sizeVariants.map((variant, idx) => (
+                                                <div key={variant.id} style={{ display: 'grid', gridTemplateColumns: '80px 80px 1fr 30px', gap: '0.4rem', marginBottom: idx < sizeVariants.length - 1 ? '0.4rem' : '0', alignItems: 'center' }}>
+                                                    <input 
+                                                        className="input-field" 
+                                                        placeholder="10mm" 
+                                                        value={variant.size} 
+                                                        onChange={e => updateSizeVariant(variant.id, 'size', e.target.value)}
+                                                        style={{ fontSize: '0.8rem', padding: '0.4rem' }}
+                                                    />
+                                                    <input 
+                                                        className="input-field" 
+                                                        placeholder="5kg/m" 
+                                                        value={variant.weight} 
+                                                        onChange={e => updateSizeVariant(variant.id, 'weight', e.target.value)}
+                                                        style={{ fontSize: '0.8rem', padding: '0.4rem' }}
+                                                    />
+                                                    <input 
+                                                        className="input-field" 
+                                                        placeholder="10x10x10" 
+                                                        value={variant.dimensions} 
+                                                        onChange={e => updateSizeVariant(variant.id, 'dimensions', e.target.value)}
+                                                        style={{ fontSize: '0.8rem', padding: '0.4rem' }}
+                                                    />
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => removeSizeVariant(variant.id)}
+                                                        disabled={sizeVariants.length === 1}
+                                                        style={{ 
+                                                            background: 'none', 
+                                                            border: 'none', 
+                                                            cursor: sizeVariants.length === 1 ? 'not-allowed' : 'pointer', 
+                                                            color: sizeVariants.length === 1 ? '#ccc' : '#ff4444',
+                                                            padding: '0.2rem'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.3rem', display: 'grid', gridTemplateColumns: '80px 80px 1fr 30px', gap: '0.4rem' }}>
+                                                <span>Size</span>
+                                                <span>Weight</span>
+                                                <span>Dimensions</span>
+                                                <span></span>
+                                            </div>
+                                        </div>
                                     </div>
+                                    
                                     <div className="input-group">
                                         <label>Description</label>
                                         <textarea className="input-field" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} rows="3"></textarea>
-                                    </div>
-                                    <div className="input-group">
-                                        <label>Dimensions</label>
-                                        <input className="input-field" value={formData.dimensions} onChange={e => setFormData({ ...formData, dimensions: e.target.value })} />
                                     </div>
                                     <div className="input-group">
                                         <label>Price (₹/kg) - Optional</label>
@@ -541,11 +808,40 @@ export default function AdminDashboard() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-md)' }}>
                                     <h3 style={{ color: 'var(--color-accent-blue)' }}>Current Inventory</h3>
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        {selectedIds.size > 0 && (
-                                            <button onClick={handleDeleteSelected} className="btn btn-outline" style={{ borderColor: '#ff4444', color: '#ff4444', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}>
-                                                Delete Selected ({selectedIds.size})
-                                            </button>
-                                        )}
+                                        {selectedIds.size > 0 && (() => {
+                                            // Check if any selected products are dead stock
+                                            const selectedProducts = products.filter(p => selectedIds.has(p.id));
+                                            const hasDeadStock = selectedProducts.some(p => p.is_dead_stock);
+                                            const hasNonDeadStock = selectedProducts.some(p => !p.is_dead_stock);
+                                            
+                                            return (
+                                                <>
+                                                    {hasNonDeadStock && (
+                                                        <button 
+                                                            onClick={handleMarkAsDeadStock} 
+                                                            className="btn btn-outline" 
+                                                            style={{ borderColor: '#f59e0b', color: '#f59e0b', padding: '0.25rem 0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                            title="Mark selected products as dead stock"
+                                                        >
+                                                            <AlertCircle size={16} /> Mark Dead Stock ({selectedIds.size})
+                                                        </button>
+                                                    )}
+                                                    {hasDeadStock && (
+                                                        <button 
+                                                            onClick={handleRemoveFromDeadStock} 
+                                                            className="btn btn-outline" 
+                                                            style={{ borderColor: '#10b981', color: '#10b981', padding: '0.25rem 0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                                                            title="Remove selected products from dead stock"
+                                                        >
+                                                            <Check size={16} /> Remove Dead Stock ({selectedIds.size})
+                                                        </button>
+                                                    )}
+                                                    <button onClick={handleDeleteSelected} className="btn btn-outline" style={{ borderColor: '#ff4444', color: '#ff4444', padding: '0.25rem 0.5rem', fontSize: '0.85rem' }}>
+                                                        Delete Selected ({selectedIds.size})
+                                                    </button>
+                                                </>
+                                            );
+                                        })()}
                                         <button onClick={handleOpenGoogleSheets} className="btn btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem', backgroundColor: '#0f9d58', color: 'white', border: 'none' }}>
                                             <Download size={16} /> Open in Google Sheets
                                         </button>
@@ -567,14 +863,30 @@ export default function AdminDashboard() {
                                         </thead>
                                         <tbody>
                                             {products.map(p => (
-                                                <tr key={p.id} style={{ borderBottom: '1px solid var(--color-secondary)' }}>
+                                                <tr key={p.id} style={{ borderBottom: '1px solid var(--color-secondary)', background: p.is_dead_stock ? '#fef3c7' : 'transparent' }}>
                                                     <td style={{ padding: '0.75rem 0.5rem' }}>
                                                         <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} />
                                                     </td>
                                                     <td style={{ padding: '0.75rem 0.5rem' }}>
                                                         {p.imageUrl ? <img src={p.imageUrl} alt={p.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px' }} /> : <div style={{ width: '40px', height: '40px', backgroundColor: '#eee', borderRadius: '4px' }}></div>}
                                                     </td>
-                                                    <td style={{ padding: '0.75rem 0.5rem' }}>{p.name} <br /><small style={{ color: 'var(--color-text-light)' }}>{p.dimensions}</small></td>
+                                                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <div>
+                                                                {p.name}
+                                                                {p.size_variants && p.size_variants.length > 0 && (
+                                                                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                                                                        {p.size_variants.map(v => v.size).join(', ')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            {p.is_dead_stock && (
+                                                                <span style={{ fontSize: '0.65rem', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>
+                                                                    DEAD STOCK
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                     <td style={{ padding: '0.75rem 0.5rem' }}>{p.category}</td>
                                                     <td style={{ padding: '0.75rem 0.5rem' }}>{p.price ? `₹${p.price}` : 'N/A'}</td>
                                                     <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
@@ -626,29 +938,89 @@ export default function AdminDashboard() {
                     )}
 
                     {activeTab === 'units' && (
-                        <div className="card" style={{ maxWidth: '400px' }}>
-                            <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent-blue)' }}>Global Units</h3>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                                <input className="input-field" placeholder="e.g. Tons, Meters" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
-                                <button className="btn btn-primary" onClick={async () => {
-                                    if (!newUnit.trim()) return;
-                                    const next = [...units, newUnit.trim()];
-                                    await (await import('../lib/db')).saveGlobalUnits(currentCompanyId, next);
-                                    setUnits(next);
-                                    setNewUnit('');
-                                }}>Add</button>
-                            </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {units.map(u => (
-                                    <div key={u} style={{ background: '#f1f3f5', padding: '0.4rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-                                        {u}
-                                        <X size={14} style={{ cursor: 'pointer', color: '#ff4444' }} onClick={async () => {
-                                            const next = units.filter(item => item !== u);
-                                            await (await import('../lib/db')).saveGlobalUnits(currentCompanyId, next);
+                        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth <= 768 ? '1fr' : '1fr 1fr', gap: 'var(--spacing-lg)' }}>
+                            <div className="card">
+                                <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent-blue)' }}>Global Units</h3>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                                    <input className="input-field" placeholder="e.g. Tons, Meters" value={newUnit} onChange={e => setNewUnit(e.target.value)} />
+                                    <button className="btn btn-primary" onClick={async () => {
+                                        if (!newUnit.trim()) return;
+                                        try {
+                                            const next = [...units, newUnit.trim()];
+                                            console.log('[Units] Adding unit:', newUnit.trim());
+                                            await saveGlobalUnits(currentCompanyId, next);
                                             setUnits(next);
-                                        }} />
-                                    </div>
-                                ))}
+                                            setNewUnit('');
+                                            console.log('[Units] Unit added successfully');
+                                        } catch (e) {
+                                            console.error('[Units] Error adding unit:', e);
+                                            alert('Error adding unit: ' + e.message);
+                                        }
+                                    }}>Add</button>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    {units.map(u => (
+                                        <div key={u} style={{ background: '#f1f3f5', padding: '0.4rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+                                            {u}
+                                            <X size={14} style={{ cursor: 'pointer', color: '#ff4444' }} onClick={async () => {
+                                                try {
+                                                    console.log('[Units] Removing unit:', u);
+                                                    const next = units.filter(item => item !== u);
+                                                    await saveGlobalUnits(currentCompanyId, next);
+                                                    setUnits(next);
+                                                    console.log('[Units] Unit removed successfully');
+                                                } catch (e) {
+                                                    console.error('[Units] Error removing unit:', e);
+                                                    alert('Error removing unit: ' + e.message);
+                                                }
+                                            }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="card">
+                                <h3 style={{ marginBottom: '1rem', color: 'var(--color-accent-blue)' }}>Product Categories</h3>
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                                    <input className="input-field" placeholder="e.g. TMT Bars, Angles" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+                                    <button className="btn btn-primary" onClick={async () => {
+                                        if (!newCategory.trim()) return;
+                                        if (categories.includes(newCategory.trim())) {
+                                            alert('Category already exists!');
+                                            return;
+                                        }
+                                        try {
+                                            const next = [...categories, newCategory.trim()].sort();
+                                            console.log('[Categories] Adding category:', newCategory.trim());
+                                            await saveGlobalCategories(currentCompanyId, next);
+                                            setCategories(next);
+                                            setNewCategory('');
+                                            console.log('[Categories] Category added successfully');
+                                        } catch (e) {
+                                            console.error('[Categories] Error adding category:', e);
+                                            alert('Error adding category: ' + e.message);
+                                        }
+                                    }}>Add</button>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                    {categories.map(cat => (
+                                        <div key={cat} style={{ background: '#e0f2fe', padding: '0.4rem 0.8rem', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+                                            {cat}
+                                            <X size={14} style={{ cursor: 'pointer', color: '#ff4444' }} onClick={async () => {
+                                                try {
+                                                    console.log('[Categories] Removing category:', cat);
+                                                    const next = categories.filter(item => item !== cat);
+                                                    await saveGlobalCategories(currentCompanyId, next);
+                                                    setCategories(next);
+                                                    console.log('[Categories] Category removed successfully');
+                                                } catch (e) {
+                                                    console.error('[Categories] Error removing category:', e);
+                                                    alert('Error removing category: ' + e.message);
+                                                }
+                                            }} />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     )}

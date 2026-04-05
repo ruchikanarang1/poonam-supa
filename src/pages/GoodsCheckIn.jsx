@@ -3,15 +3,20 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
     getSuppliers, getPurchaseOrders, updatePurchaseOrder, 
     getLogisticsEntries, addGoodsCheckInEntry, getGlobalUnits,
-    getVendorBrandRegistry
+    getVendorBrandRegistry, saveSupplier
 } from '../lib/db';
 import { PackageSearch, Search, Plus, Trash2, CheckCircle, AlertCircle, Save, ArrowRight, Package } from 'lucide-react';
 import GenericAutocomplete from '../components/GenericAutocomplete';
+import QuickAddModal from '../components/QuickAddModal';
 
 export default function GoodsCheckIn() {
     const { currentUser, userData, isAdmin, currentCompanyId } = useAuth();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    
+    // Quick Add Modal
+    const [showVendorModal, setShowVendorModal] = useState(false);
+    const [quickAddInitialValue, setQuickAddInitialValue] = useState('');
     
     // Data State
     const [suppliers, setSuppliers] = useState([]);
@@ -116,6 +121,11 @@ export default function GoodsCheckIn() {
             window.location.reload();
         } catch (err) { console.error(err); alert("Error finalizing: " + err.message); }
         finally { setSubmitting(false); }
+    };
+
+    const handleAddVendor = async (vendorData) => {
+        await saveSupplier(currentCompanyId, null, vendorData);
+        await loadInitialData(); // Reload to get the new vendor
     };
 
     if (loading) return <div className="container" style={{ padding: '2rem' }}>Loading Check-In Portal...</div>;
@@ -290,6 +300,11 @@ export default function GoodsCheckIn() {
                                                 updateProduct(prod.id, { vendorName: s.name });
                                             }
                                         }}
+                                        onAddNew={(value) => {
+                                            setQuickAddInitialValue(value);
+                                            setShowVendorModal(true);
+                                        }}
+                                        addNewLabel="Add Vendor"
                                     />
                                 );
                             })()}
@@ -403,6 +418,22 @@ export default function GoodsCheckIn() {
                 </div>
             </div>
             </div>
+
+            {/* Quick Add Vendor Modal */}
+            <QuickAddModal
+                isOpen={showVendorModal}
+                onClose={() => setShowVendorModal(false)}
+                onSave={handleAddVendor}
+                title="Add New Vendor"
+                initialValues={{ name: quickAddInitialValue }}
+                fields={[
+                    { name: 'name', label: 'Vendor Name', type: 'text', required: true, placeholder: 'Enter vendor name' },
+                    { name: 'contact', label: 'Contact Number', type: 'tel', required: false, placeholder: 'Enter phone number' },
+                    { name: 'email', label: 'Email', type: 'email', required: false, placeholder: 'Enter email' },
+                    { name: 'address', label: 'Address', type: 'textarea', required: false, placeholder: 'Enter full address' },
+                    { name: 'gst_no', label: 'GST Number', type: 'text', required: false, placeholder: 'Enter GST number' }
+                ]}
+            />
         </div>
     );
 }

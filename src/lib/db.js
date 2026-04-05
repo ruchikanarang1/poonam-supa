@@ -15,7 +15,12 @@ export const getProducts = async (companyId) => {
     try {
         const { data, error } = await supabase.from('products').select('*').eq('company_id', companyId);
         const products = handle({ data, error }, "getProducts") || [];
-        return products.map(p => ({ ...p, createdAt: p.created_at || p.createdAt }));
+        // Map database fields to frontend expectations
+        return products.map(p => ({ 
+            ...p, 
+            createdAt: p.created_at || p.createdAt,
+            imageUrl: p.image_url || p.imageUrl // Map snake_case to camelCase
+        }));
     } catch (e) {
         console.error("Network Error in getProducts:", e);
         return [];
@@ -117,13 +122,43 @@ export const getLogisticsEntries = async (companyId, type) => {
         const entries = handle({ data, error }, `getLogisticsEntries:${type}`) || [];
         
         // Map database fields to frontend expectations
-        return entries.map(entry => ({
-            ...entry,
-            // Map goods (database) to lots (frontend)
-            lots: entry.goods || entry.lots || [],
-            // Map created_at (database) to createdAt (frontend)
-            createdAt: entry.created_at || entry.createdAt
-        }));
+        return entries.map(entry => {
+            let lots = entry.goods || entry.lots || [];
+            
+            // Migrate old data format: convert isShort/backlogQty to received/pending
+            lots = lots.map(lot => {
+                if (lot.received !== undefined && lot.pending !== undefined) {
+                    // New format, return as-is
+                    return lot;
+                }
+                
+                // Old format migration
+                const lotSize = parseFloat(lot.lot_size) || 0;
+                if (lot.isShort && lot.backlogQty) {
+                    // Old format: had isShort and backlogQty
+                    const backlog = parseFloat(lot.backlogQty) || 0;
+                    const received = lotSize - backlog;
+                    return {
+                        ...lot,
+                        received: received,
+                        pending: backlog
+                    };
+                } else {
+                    // Old format: no shortage, all received
+                    return {
+                        ...lot,
+                        received: lotSize,
+                        pending: 0
+                    };
+                }
+            });
+            
+            return {
+                ...entry,
+                lots: lots,
+                createdAt: entry.created_at || entry.createdAt
+            };
+        });
     } catch (e) {
         console.error(`Network error on logistics_${type}:`, e);
         return [];
@@ -136,7 +171,9 @@ export const addLogisticsEntry = async (companyId, type, entryData) => {
         'date', 'time', 'lr_number', 'transport_company', 'vendor_name', 
         'location', 'vehicle_no', 'driver_name', 'from_loc', 'to_loc', 
         'opened', 'status', 'notes', 'po_id', 'bill_no', 'vendor', 
-        'amount', 'category', 'payment_mode'
+        'amount', 'category', 'payment_mode',
+        // Delivery tracking columns
+        'booking_date', 'booking_station', 'delivery_status', 'days_elapsed'
     ];
 
     const cleanData = {};
@@ -175,7 +212,42 @@ export const deleteLogisticsEntry = async (companyId, type, id) => {
 };
 
 export const updateLogisticsEntry = async (companyId, type, id, updates) => {
-    handle(await supabase.from(`logistics_${type}`).update(updates).eq('id', id).eq('company_id', companyId));
+    const standardColumns = [
+        'date', 'time', 'lr_number', 'transport_company', 'vendor_name', 
+        'location', 'vehicle_no', 'driver_name', 'from_loc', 'to_loc', 
+        'opened', 'status', 'notes', 'po_id', 'bill_no', 'vendor', 
+        'amount', 'category', 'payment_mode',
+        // Delivery tracking columns
+        'booking_date', 'booking_station', 'delivery_status', 'days_elapsed'
+    ];
+
+    const cleanData = {};
+    const metadata = {};
+
+    // Special handling: map 'lots' to 'goods' column
+    if (updates.lots) {
+        cleanData.goods = updates.lots;
+    }
+
+    // Partition data into top-level columns vs metadata bucket
+    Object.keys(updates).forEach(key => {
+        if (key === 'lots') {
+            // Already handled above
+            return;
+        }
+        if (standardColumns.includes(key)) {
+            cleanData[key] = updates[key];
+        } else {
+            metadata[key] = updates[key];
+        }
+    });
+
+    // If there's metadata, include it
+    const finalUpdates = Object.keys(metadata).length > 0 
+        ? { ...cleanData, metadata }
+        : cleanData;
+
+    handle(await supabase.from(`logistics_${type}`).update(finalUpdates).eq('id', id).eq('company_id', companyId));
 };
 
 export const getLogisticsEntriesInRange = async (companyId, type, startDate, endDate) => {
@@ -278,6 +350,33 @@ export const saveGlobalUnits = async (companyId, unitsArray) => {
     }, { onConflict: 'company_id,key' }));
 };
 
+// ==== Categories Management ==== //
+export const getGlobalCategories = async (companyId) => {
+    if (!companyId) return ['TMT Bars', 'Angles', 'Channels', 'Beams', 'Plates', 'Sheets'];
+    try {
+        const { data, error } = await supabase
+            .from('configs')
+            .select('value')
+            .eq('company_id', companyId)
+            .eq('key', 'categories')
+            .maybeSingle();
+
+        const result = handle({ data, error }, "getGlobalCategories");
+        return result?.value?.list || ['TMT Bars', 'Angles', 'Channels', 'Beams', 'Plates', 'Sheets'];
+    } catch (e) {
+        console.error("Network Error in getGlobalCategories:", e);
+        return ['TMT Bars', 'Angles', 'Channels', 'Beams', 'Plates', 'Sheets'];
+    }
+};
+
+export const saveGlobalCategories = async (companyId, categoriesArray) => {
+    handle(await supabase.from('configs').upsert({
+        company_id: companyId,
+        key: 'categories',
+        value: { list: categoriesArray }
+    }, { onConflict: 'company_id,key' }));
+};
+
 // ==== Goods Check-In ==== //
 export const getGoodsCheckInEntries = async (companyId) => {
     const data = handle(await supabase.from('goods_check_in').select('*').eq('company_id', companyId));
@@ -326,11 +425,20 @@ export const getTransports = async (companyId) => {
 };
 
 export const saveTransport = async (companyId, id, data) => {
+    // Map form fields to database fields
+    const transportData = {
+        name: data.name,
+        contact: data.phone || data.contact,
+        vehicle_nos: data.vehicleNumber ? [data.vehicleNumber] : (data.vehicle_nos || []),
+        notes: data.notes || '',
+        booking_stations: data.booking_stations || []
+    };
+
     if (id) {
-        handle(await supabase.from('transports').update(data).eq('id', id).eq('company_id', companyId));
+        handle(await supabase.from('transports').update(transportData).eq('id', id).eq('company_id', companyId));
     } else {
         handle(await supabase.from('transports').insert({
-            ...data,
+            ...transportData,
             company_id: companyId,
             created_at: new Date().toISOString()
         }));
@@ -339,6 +447,54 @@ export const saveTransport = async (companyId, id, data) => {
 
 export const deleteTransport = async (companyId, id) => {
     handle(await supabase.from('transports').delete().eq('id', id).eq('company_id', companyId));
+};
+
+// Task 1.3: Get transport with booking stations
+export const getTransportWithStations = async (companyId, transportName) => {
+    const { data, error } = await supabase
+        .from('transports')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('name', transportName)
+        .order('created_at', { ascending: false })
+        .limit(1);
+    
+    if (error) {
+        console.error(`[DB ERROR] getTransportWithStations:`, error);
+        throw new Error(`Database operation failed: getTransportWithStations - ${error.message || JSON.stringify(error)}`);
+    }
+    
+    // Return first result or null if no results
+    return data && data.length > 0 ? data[0] : null;
+};
+
+// Task 1.4: Update transport booking stations
+export const updateTransportStations = async (companyId, transportId, stations) => {
+    const { data, error } = await supabase
+        .from('transports')
+        .update({ booking_stations: stations })
+        .eq('id', transportId)
+        .eq('company_id', companyId)
+        .select()
+        .single();
+    return handle({ data, error }, 'updateTransportStations');
+};
+
+// Task 1.5: Get bills with delivery tracking
+export const getBillsWithTracking = async (companyId) => {
+    const { data, error } = await supabase
+        .from('logistics_bills')
+        .select('*')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false });
+    
+    const bills = handle({ data, error }, 'getBillsWithTracking') || [];
+    
+    // Return bills with tracking fields (calculation will be done in UI layer)
+    return bills.map(bill => ({
+        ...bill,
+        createdAt: bill.created_at || bill.createdAt
+    }));
 };
 
 // ==== Purchase Orders ==== //
@@ -478,4 +634,405 @@ export const addCompanyEmployee = async (companyId, employeeId) => {
     
     // Also approve them globally so they bypass the AccessPending screen
     await supabase.from('profiles').update({ status: 'approved' }).eq('id', employeeId);
+};
+
+// Update employee profile details
+export const updateEmployeeProfile = async (employeeId, profileData) => {
+    const { data, error} = await supabase
+        .from('profiles')
+        .update(profileData)
+        .eq('id', employeeId)
+        .select()
+        .single();
+    return handle({ data, error }, 'updateEmployeeProfile');
+};
+
+// ==== Reports & Analytics Functions ==== //
+
+// Get Transport Entries with Filters
+export const getTransportEntriesFiltered = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    let query = supabase
+        .from('logistics_transport')
+        .select('*')
+        .eq('company_id', companyId);
+    
+    // Apply date range filter
+    if (filters.dateRange?.start) {
+        query = query.gte('date', filters.dateRange.start);
+    }
+    if (filters.dateRange?.end) {
+        query = query.lte('date', filters.dateRange.end);
+    }
+    
+    // Apply vendor filter
+    if (filters.vendors?.length > 0) {
+        query = query.in('vendor_name', filters.vendors);
+    }
+    
+    // Apply transport company filter
+    if (filters.transportCompanies?.length > 0) {
+        query = query.in('transport_company', filters.transportCompanies);
+    }
+    
+    // Apply status filter
+    if (filters.statuses?.length > 0) {
+        query = query.in('status', filters.statuses);
+    }
+    
+    query = query.order('date', { ascending: false });
+    
+    const { data, error } = await query;
+    const entries = handle({ data, error }, 'getTransportEntriesFiltered') || [];
+    
+    return entries.map(entry => ({
+        ...entry,
+        lots: entry.goods || entry.lots || [],
+        createdAt: entry.created_at || entry.createdAt
+    }));
+};
+
+// Get Bills Entries with Filters
+export const getBillsEntriesFiltered = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    let query = supabase
+        .from('logistics_bills')
+        .select('*')
+        .eq('company_id', companyId);
+    
+    // Apply date range filter
+    if (filters.dateRange?.start) {
+        query = query.gte('date', filters.dateRange.start);
+    }
+    if (filters.dateRange?.end) {
+        query = query.lte('date', filters.dateRange.end);
+    }
+    
+    // Apply vendor filter
+    if (filters.vendors?.length > 0) {
+        query = query.in('vendor_name', filters.vendors);
+    }
+    
+    // Apply transport company filter
+    if (filters.transportCompanies?.length > 0) {
+        query = query.in('transport_company', filters.transportCompanies);
+    }
+    
+    // Apply category filter (from metadata)
+    if (filters.categories?.length > 0) {
+        // Note: This requires metadata filtering which may need custom logic
+        // For now, we'll fetch all and filter in memory
+    }
+    
+    query = query.order('date', { ascending: false });
+    
+    const { data, error } = await query;
+    const entries = handle({ data, error }, 'getBillsEntriesFiltered') || [];
+    
+    return entries.map(entry => ({
+        ...entry,
+        createdAt: entry.created_at || entry.createdAt
+    }));
+};
+
+// Get Inventory Report
+export const getInventoryReport = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    let query = supabase
+        .from('products')
+        .select('*')
+        .eq('company_id', companyId);
+    
+    // Apply brand filter
+    if (filters.brands?.length > 0) {
+        query = query.in('brand', filters.brands);
+    }
+    
+    // Apply category filter
+    if (filters.categories?.length > 0) {
+        query = query.in('category', filters.categories);
+    }
+    
+    const { data, error } = await query;
+    const products = handle({ data, error }, 'getInventoryReport') || [];
+    
+    return products.map(p => ({
+        ...p,
+        product_name: p.name,
+        stock_quantity: p.stock || 0,
+        createdAt: p.created_at || p.createdAt
+    }));
+};
+
+// Get Vendor Performance Metrics
+export const getVendorPerformanceMetrics = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    try {
+        // Fetch bills and transport entries
+        const [bills, transports, brands] = await Promise.all([
+            getBillsEntriesFiltered(companyId, filters),
+            getTransportEntriesFiltered(companyId, filters),
+            getVendorBrandRegistry(companyId)
+        ]);
+        
+        // Aggregate by vendor
+        const vendorMap = {};
+        
+        bills.forEach(bill => {
+            const vendor = bill.vendor_name;
+            if (!vendor) return;
+            
+            if (!vendorMap[vendor]) {
+                vendorMap[vendor] = {
+                    vendor_name: vendor,
+                    total_purchase_amount: 0,
+                    total_orders: 0,
+                    brands_supplied: new Set(),
+                    delivery_times: [],
+                    on_time_count: 0,
+                    total_deliveries: 0
+                };
+            }
+            
+            vendorMap[vendor].total_orders++;
+            
+            // Add delivery tracking data
+            if (bill.days_elapsed !== undefined) {
+                vendorMap[vendor].delivery_times.push(bill.days_elapsed);
+                vendorMap[vendor].total_deliveries++;
+                
+                if (bill.delivery_status === 'On Time' || bill.delivery_status === 'Early') {
+                    vendorMap[vendor].on_time_count++;
+                }
+            }
+        });
+        
+        // Add brands from registry
+        brands.forEach(entry => {
+            const vendor = entry.vendor_name;
+            if (vendorMap[vendor] && entry.brand_name) {
+                vendorMap[vendor].brands_supplied.add(entry.brand_name);
+            }
+        });
+        
+        // Convert to array and calculate metrics
+        return Object.values(vendorMap).map(vendor => ({
+            ...vendor,
+            brands_supplied: Array.from(vendor.brands_supplied),
+            avg_delivery_time: vendor.delivery_times.length > 0
+                ? (vendor.delivery_times.reduce((a, b) => a + b, 0) / vendor.delivery_times.length).toFixed(1)
+                : 0,
+            on_time_percentage: vendor.total_deliveries > 0
+                ? ((vendor.on_time_count / vendor.total_deliveries) * 100).toFixed(1)
+                : 0
+        })).sort((a, b) => b.total_purchase_amount - a.total_purchase_amount);
+        
+    } catch (error) {
+        console.error('Error in getVendorPerformanceMetrics:', error);
+        return [];
+    }
+};
+
+// Get Brand Analysis Metrics
+export const getBrandAnalysisMetrics = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    try {
+        const [bills, brands] = await Promise.all([
+            getBillsEntriesFiltered(companyId, filters),
+            getVendorBrandRegistry(companyId)
+        ]);
+        
+        // Aggregate by brand
+        const brandMap = {};
+        
+        brands.forEach(entry => {
+            const brand = entry.brand_name;
+            if (!brand) return;
+            
+            if (!brandMap[brand]) {
+                brandMap[brand] = {
+                    brand_name: brand,
+                    total_amount: 0,
+                    entry_count: 0,
+                    vendors: new Set()
+                };
+            }
+            
+            brandMap[brand].entry_count++;
+            if (entry.vendor_name) {
+                brandMap[brand].vendors.add(entry.vendor_name);
+            }
+        });
+        
+        // Convert to array
+        return Object.values(brandMap).map(brand => ({
+            ...brand,
+            vendors: Array.from(brand.vendors),
+            avg_amount_per_entry: brand.entry_count > 0
+                ? (brand.total_amount / brand.entry_count).toFixed(2)
+                : 0
+        })).sort((a, b) => b.entry_count - a.entry_count);
+        
+    } catch (error) {
+        console.error('Error in getBrandAnalysisMetrics:', error);
+        return [];
+    }
+};
+
+// Get Financial Summary
+export const getFinancialSummary = async (companyId, filters = {}, groupBy = 'vendor') => {
+    if (!companyId) return [];
+    
+    try {
+        const bills = await getBillsEntriesFiltered(companyId, filters);
+        
+        // Aggregate by groupBy parameter
+        const groupMap = {};
+        
+        bills.forEach(bill => {
+            let groupKey;
+            
+            switch (groupBy) {
+                case 'vendor':
+                    groupKey = bill.vendor_name;
+                    break;
+                case 'brand':
+                    groupKey = bill.metadata?.brand || 'Unknown';
+                    break;
+                case 'category':
+                    groupKey = bill.category || bill.metadata?.category || 'Unknown';
+                    break;
+                case 'month':
+                    groupKey = bill.date ? bill.date.substring(0, 7) : 'Unknown'; // YYYY-MM
+                    break;
+                default:
+                    groupKey = 'All';
+            }
+            
+            if (!groupKey) return;
+            
+            if (!groupMap[groupKey]) {
+                groupMap[groupKey] = {
+                    group_name: groupKey,
+                    amounts: []
+                };
+            }
+            
+            const amount = parseFloat(bill.metadata?.amount || bill.amount || 0);
+            groupMap[groupKey].amounts.push(amount);
+        });
+        
+        // Calculate summary metrics
+        return Object.values(groupMap).map(group => {
+            const amounts = group.amounts;
+            const total = amounts.reduce((a, b) => a + b, 0);
+            const count = amounts.length;
+            
+            return {
+                group_name: group.group_name,
+                total: total.toFixed(2),
+                average: count > 0 ? (total / count).toFixed(2) : 0,
+                min: count > 0 ? Math.min(...amounts).toFixed(2) : 0,
+                max: count > 0 ? Math.max(...amounts).toFixed(2) : 0,
+                count
+            };
+        }).sort((a, b) => parseFloat(b.total) - parseFloat(a.total));
+        
+    } catch (error) {
+        console.error('Error in getFinancialSummary:', error);
+        return [];
+    }
+};
+
+// Get Delivery Tracking Report
+export const getDeliveryTrackingReport = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    try {
+        const bills = await getBillsEntriesFiltered(companyId, filters);
+        
+        // Filter bills with delivery tracking data
+        const tracked = bills.filter(bill => 
+            bill.booking_date && bill.booking_station && bill.days_elapsed !== undefined
+        );
+        
+        // Calculate metrics
+        const onTimeCount = tracked.filter(b => 
+            b.delivery_status === 'On Time' || b.delivery_status === 'Early'
+        ).length;
+        
+        const overdueCount = tracked.filter(b => 
+            b.delivery_status === 'Overdue'
+        ).length;
+        
+        const totalDays = tracked.reduce((sum, b) => sum + (b.days_elapsed || 0), 0);
+        const avgDeliveryTime = tracked.length > 0 ? (totalDays / tracked.length).toFixed(1) : 0;
+        const onTimePercentage = tracked.length > 0 ? ((onTimeCount / tracked.length) * 100).toFixed(1) : 0;
+        
+        return {
+            entries: tracked,
+            metrics: {
+                totalDeliveries: tracked.length,
+                onTimePercentage,
+                avgDeliveryTime,
+                overdueCount
+            }
+        };
+        
+    } catch (error) {
+        console.error('Error in getDeliveryTrackingReport:', error);
+        return { entries: [], metrics: {} };
+    }
+};
+
+// Get Purchase Orders Report
+export const getPurchaseOrdersReport = async (companyId, filters = {}) => {
+    if (!companyId) return [];
+    
+    try {
+        let query = supabase
+            .from('purchase_orders')
+            .select('*')
+            .eq('company_id', companyId);
+        
+        // Apply date range filter
+        if (filters.dateRange?.start) {
+            query = query.gte('created_at', filters.dateRange.start);
+        }
+        if (filters.dateRange?.end) {
+            query = query.lte('created_at', filters.dateRange.end);
+        }
+        
+        // Apply vendor filter
+        if (filters.vendors?.length > 0) {
+            query = query.in('vendor_name', filters.vendors);
+        }
+        
+        // Apply status filter
+        if (filters.statuses?.length > 0) {
+            query = query.in('status', filters.statuses);
+        }
+        
+        query = query.order('created_at', { ascending: false });
+        
+        const { data, error } = await query;
+        const orders = handle({ data, error }, 'getPurchaseOrdersReport') || [];
+        
+        return orders.map(po => ({
+            ...po,
+            po_number: po.po_number,
+            items_count: po.items?.length || 0,
+            total_amount: po.items?.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0) || 0,
+            createdAt: po.created_at || po.createdAt
+        }));
+        
+    } catch (error) {
+        console.error('Error in getPurchaseOrdersReport:', error);
+        return [];
+    }
 };

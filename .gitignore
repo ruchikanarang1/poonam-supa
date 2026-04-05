@@ -11,7 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables (CRITICAL - contains sensitive keys)
 .env
+.env.local
+.env.production
+.env.development
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +28,35 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Database migrations and fixes (contain sensitive data)
+*.sql
+customer_database_migration.sql
+customer_order_lifecycle_migration.sql
+customer_payment_collection_migration.sql
+FIX_CUSTOMERS_*.sql
+OPTIMIZE_RLS_POLICIES.sql
+TEMPORARY_DISABLE_RLS.sql
+supabase_schema.sql
+
+# Kiro specs and documentation
+.kiro/
+
+# Build outputs
+build_output.txt
+git_status.txt
+
+# Deployment and troubleshooting docs (may contain sensitive info)
+DEPLOYMENT_CHECKLIST.md
+MIGRATION_FIXES_APPLIED.md
+TROUBLESHOOTING_*.md
+RUN_THIS_SQL_MIGRATION.md
+QUICK_ADD_FEATURE.md
+
+# Documentation files (development notes, not needed for deployment)
+*.md
+!README.md
+
+# CSV templates
+*.csv
+template.csv

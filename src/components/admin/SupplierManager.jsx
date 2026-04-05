@@ -7,7 +7,7 @@ export default function SupplierManager() {
     const { currentCompanyId } = useAuth();
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [form, setForm] = useState({ name: '', phone: '', address: '', gst: '', brands: '' });
+    const [form, setForm] = useState({ name: '', contact: '', address: '', gst_no: '', brands: '' });
     const [editingId, setEditingId] = useState(null);
     const [saving, setSaving] = useState(false);
 
@@ -17,22 +17,32 @@ export default function SupplierManager() {
 
     const load = async () => {
         setLoading(true);
-        try { setSuppliers(await getSuppliers(currentCompanyId)); }
-        catch (err) { console.error(err); }
+        try { 
+            const data = await getSuppliers(currentCompanyId);
+            console.log('Loaded suppliers:', data);
+            setSuppliers(data || []); 
+        }
+        catch (err) { 
+            console.error('Error loading suppliers:', err);
+            setSuppliers([]);
+        }
         finally { setLoading(false); }
     };
 
     const handleSave = async (e) => {
         e.preventDefault();
-        if (!form.name.trim() || !form.phone.trim()) return;
+        if (!form.name.trim() || !form.contact.trim()) return;
         setSaving(true);
         try {
             const dataToSave = { 
-                ...form, 
+                name: form.name,
+                contact: form.contact,
+                address: form.address,
+                gst_no: form.gst_no,
                 brands: form.brands.split(',').map(b => b.trim()).filter(b => b) 
             };
             await saveSupplier(currentCompanyId, editingId, dataToSave);
-            setForm({ name: '', phone: '', address: '', gst: '', brands: '' });
+            setForm({ name: '', contact: '', address: '', gst_no: '', brands: '' });
             setEditingId(null);
             await load();
         } catch (err) { alert('Failed to save'); }
@@ -43,14 +53,14 @@ export default function SupplierManager() {
         setEditingId(s.id);
         setForm({ 
             name: s.name, 
-            phone: s.phone, 
+            contact: s.contact || s.phone || '', 
             address: s.address || '', 
-            gst: s.gst || '',
+            gst_no: s.gst_no || s.gst || '',
             brands: s.brands ? s.brands.join(', ') : ''
         });
     };
 
-    const cancelEdit = () => { setEditingId(null); setForm({ name: '', phone: '', address: '', gst: '', brands: '' }); };
+    const cancelEdit = () => { setEditingId(null); setForm({ name: '', contact: '', address: '', gst_no: '', brands: '' }); };
 
     const handleDelete = async (id) => {
         if (!window.confirm('Remove this supplier?')) return;
@@ -77,11 +87,15 @@ export default function SupplierManager() {
                     </div>
                     <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>Phone Number *</label>
-                        <input className="input-field" type="tel" placeholder="e.g. 9876543210" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} required />
+                        <input className="input-field" type="tel" placeholder="e.g. 9876543210" value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} required />
                     </div>
                     <div>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>Address</label>
                         <input className="input-field" placeholder="City, State" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} />
+                    </div>
+                    <div>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>GST Number</label>
+                        <input className="input-field" placeholder="e.g. 27AABCU9603R1ZM" value={form.gst_no} onChange={e => setForm({ ...form, gst_no: e.target.value })} />
                     </div>
                     <div style={{ gridColumn: '1 / -1' }}>
                         <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'block', marginBottom: '0.25rem' }}>Associated Brands (Comma separated)</label>
@@ -107,7 +121,7 @@ export default function SupplierManager() {
                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Name</th>
                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Phone</th>
                         <th style={{ padding: '0.5rem', textAlign: 'left' }}>Address</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>GST</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'left' }}>GST Number</th>
                         <th style={{ padding: '0.5rem' }}></th>
                     </tr>
                 </thead>
@@ -115,25 +129,54 @@ export default function SupplierManager() {
                     {suppliers.length === 0 && (
                         <tr><td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'gray' }}>No suppliers yet. Add one above.</td></tr>
                     )}
-                    {suppliers.map(s => (
+                    {suppliers.map(s => {
+                        // Check if profile is incomplete - be defensive about field names
+                        const contact = s.contact || s.phone;
+                        const gstNo = s.gst_no || s.gst;
+                        const isIncomplete = !contact || !s.address || !gstNo || !s.brands || s.brands.length === 0;
+                        
+                        return (
                         <tr key={s.id} style={{ borderBottom: '1px solid #f1f3f5' }}>
                             <td style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>
-                                {s.name}
-                                {s.brands && s.brands.length > 0 && (
-                                    <div style={{ fontSize: '0.65rem', color: 'var(--color-accent-orange)', textTransform: 'uppercase', marginTop: '2px' }}>
-                                        🏷️ {s.brands.join(', ')}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <div>
+                                        {s.name}
+                                        {s.brands && s.brands.length > 0 && (
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--color-accent-orange)', textTransform: 'uppercase', marginTop: '2px' }}>
+                                                🏷️ {s.brands.join(', ')}
+                                            </div>
+                                        )}
                                     </div>
-                                )}
+                                    {isIncomplete && (
+                                        <span 
+                                            style={{ 
+                                                fontSize: '0.65rem', 
+                                                background: '#fef3c7', 
+                                                color: '#92400e', 
+                                                padding: '2px 8px', 
+                                                borderRadius: '4px', 
+                                                fontWeight: '700',
+                                                cursor: 'pointer',
+                                                border: '1px solid #fbbf24'
+                                            }}
+                                            onClick={() => startEdit(s)}
+                                            title="Click to complete missing information"
+                                        >
+                                            ⚠️ INCOMPLETE
+                                        </span>
+                                    )}
+                                </div>
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>{s.phone}</td>
-                            <td style={{ padding: '0.75rem 0.5rem', color: 'gray', fontSize: '0.9rem' }}>{s.address || '—'}</td>
-                            <td style={{ padding: '0.75rem 0.5rem', color: 'gray', fontSize: '0.85rem' }}><code>{s.gst || '—'}</code></td>
+                            <td style={{ padding: '0.75rem 0.5rem' }}>{contact || <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>Missing</span>}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', color: 'gray', fontSize: '0.9rem' }}>{s.address || <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>Missing</span>}</td>
+                            <td style={{ padding: '0.75rem 0.5rem', color: 'gray', fontSize: '0.85rem' }}><code>{gstNo || <span style={{ color: '#ef4444', fontSize: '0.85rem' }}>Missing</span>}</code></td>
                             <td style={{ padding: '0.75rem 0.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                 <button onClick={() => startEdit(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent-blue)' }}><Edit2 size={16} /></button>
                                 <button onClick={() => handleDelete(s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff4444' }}><Trash2 size={16} /></button>
                             </td>
                         </tr>
-                    ))}
+                        );
+                    })}
                 </tbody>
             </table>
         </div>

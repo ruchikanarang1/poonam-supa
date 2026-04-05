@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, MapPin, Truck, Landmark } from 'lucide-react';
+import { Search, MapPin, Truck, Landmark, Plus } from 'lucide-react';
 
 export default function GenericAutocomplete({ 
     value, 
@@ -8,7 +8,9 @@ export default function GenericAutocomplete({
     fetchData, 
     items, // New prop for static/pre-filtered data
     placeholder = "Search...", 
-    iconType = 'search' 
+    iconType = 'search',
+    onAddNew, // New prop: callback when "+ Add New" is clicked
+    addNewLabel = "Add New" // Customizable label for add button
 }) {
     const [data, setData] = useState([]);
     const [filtered, setFiltered] = useState([]);
@@ -63,7 +65,29 @@ export default function GenericAutocomplete({
         setShowDropdown(false);
     };
 
+    const handleAddNew = () => {
+        setShowDropdown(false);
+        if (onAddNew) {
+            onAddNew(value); // Pass the current typed value to the callback
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        // Close dropdown on Tab or Escape
+        if (e.key === 'Tab' || e.key === 'Escape') {
+            setShowDropdown(false);
+        }
+        // Allow Tab to move to next field
+        if (e.key === 'Tab') {
+            // Don't prevent default - let tab work naturally
+            setShowDropdown(false);
+        }
+    };
+
     const Icon = iconType === 'truck' ? Truck : (iconType === 'vendor' ? Landmark : Search);
+
+    // Show dropdown if there are matches OR if onAddNew is provided (to show "+ Add New" option)
+    const shouldShowDropdown = showDropdown && (filtered.length > 0 || (onAddNew && value.trim().length > 0));
 
     return (
         <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
@@ -74,6 +98,7 @@ export default function GenericAutocomplete({
                     placeholder={placeholder}
                     value={value}
                     onChange={handleInputChange}
+                    onKeyDown={handleKeyDown}
                     onFocus={() => { 
                         // Show all matching current data on focus
                         const matches = data.filter(item => 
@@ -87,7 +112,7 @@ export default function GenericAutocomplete({
                 <Icon size={14} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: '#888' }} />
             </div>
 
-            {showDropdown && filtered.length > 0 && (
+            {shouldShowDropdown && (
                 <div style={{
                     position: 'absolute',
                     top: '100%',
@@ -128,6 +153,30 @@ export default function GenericAutocomplete({
                             )}
                         </div>
                     ))}
+                    
+                    {/* "+ Add New" option */}
+                    {onAddNew && value.trim().length > 0 && (
+                        <div
+                            onClick={handleAddNew}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                cursor: 'pointer',
+                                background: '#f0f9ff',
+                                borderTop: filtered.length > 0 ? '2px solid var(--color-accent-blue)' : 'none',
+                                color: 'var(--color-accent-blue)',
+                                fontWeight: '600',
+                                fontSize: '0.85rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                transition: 'background 0.2s'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.background = '#dbeafe'}
+                            onMouseOut={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                        >
+                            <Plus size={16} /> {addNewLabel} "{value}"
+                        </div>
+                    )}
                 </div>
             )}
         </div>

@@ -16,7 +16,8 @@ export default function BrandRegistryManager() {
     const [saving, setSaving] = useState(false);
     
     // Form and Registry UI State
-    const [formData, setFormData] = useState({ vendorName: '', brandName: '', productName: '' });
+    const [formData, setFormData] = useState({ vendorName: '', brandName: '' });
+    const [products, setProducts] = useState([{ id: Date.now(), name: '', size: '' }]);
     const [dynamicData, setDynamicData] = useState({});
     const [editingId, setEditingId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -50,15 +51,21 @@ export default function BrandRegistryManager() {
         if (!formData.vendorName || !formData.brandName) return;
         setSaving(true);
         try {
-            const dataToSave = { ...formData, ...dynamicData };
+            // Filter out empty products
+            const cleanedProducts = products.filter(p => p.name.trim()).map(({ id, ...rest }) => rest);
+            const dataToSave = { 
+                ...formData, 
+                ...dynamicData,
+                products: cleanedProducts,
+                // Keep old productName for backward compatibility (use first product)
+                productName: cleanedProducts.length > 0 ? cleanedProducts[0].name : ''
+            };
             await saveVendorBrandEntry(currentCompanyId, editingId, dataToSave);
             alert("Registry Entry Saved!");
             
-            // Re-sync basic suppliers' brands array (optional but helpful)
-            // find supplier and ensure brand is added to their brands list
-            
             setEditingId(null);
-            setFormData({ vendorName: '', brandName: '', productName: '' });
+            setFormData({ vendorName: '', brandName: '' });
+            setProducts([{ id: Date.now(), name: '', size: '' }]);
             const initialDynamic = {};
             fields.forEach(f => initialDynamic[f.id] = '');
             setDynamicData(initialDynamic);
@@ -91,10 +98,35 @@ export default function BrandRegistryManager() {
 
     const startEdit = (entry) => {
         setEditingId(entry.id);
-        setFormData({ vendorName: entry.vendorName, brandName: entry.brandName, productName: entry.productName || '' });
+        setFormData({ vendorName: entry.vendorName, brandName: entry.brandName });
+        
+        // Load products if they exist, otherwise migrate from old productName
+        if (entry.products && entry.products.length > 0) {
+            setProducts(entry.products.map((p, idx) => ({ ...p, id: Date.now() + idx })));
+        } else if (entry.productName) {
+            // Migrate old format
+            setProducts([{ id: Date.now(), name: entry.productName, size: '' }]);
+        } else {
+            setProducts([{ id: Date.now(), name: '', size: '' }]);
+        }
+        
         const dyn = {};
         fields.forEach(f => dyn[f.id] = entry[f.id] || '');
         setDynamicData(dyn);
+    };
+
+    const addProduct = () => {
+        setProducts([...products, { id: Date.now(), name: '', size: '' }]);
+    };
+
+    const removeProduct = (id) => {
+        if (products.length > 1) {
+            setProducts(products.filter(p => p.id !== id));
+        }
+    };
+
+    const updateProduct = (id, field, value) => {
+        setProducts(products.map(p => p.id === id ? { ...p, [field]: value } : p));
     };
 
     const handleDelete = async (id) => {
@@ -134,32 +166,76 @@ export default function BrandRegistryManager() {
             {/* Excel Entry Row */}
             <div style={{ background: '#fff', borderBottom: '1px solid #eee' }}>
                 <form onSubmit={handleSave} className="saas-excel-data-row" style={{ minWidth: '100%', padding: '10px 1.5rem', background: '#fcfcfc' }}>
-                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', width: '100%' }}>
-                        <div style={{ width: '220px' }}>
-                            <span className="saas-lot-label-tiny">VENDOR / SUPPLIER</span>
-                            <GenericAutocomplete 
-                                placeholder="Search supplier..." 
-                                fetchData={() => getSuppliers(currentCompanyId)} 
-                                iconType="vendor"
-                                value={formData.vendorName} onChange={v => setFormData({ ...formData, vendorName: v })}
-                                onSelect={s => setFormData({ ...formData, vendorName: s.name })}
-                            />
-                        </div>
-                        <div style={{ width: '180px' }}>
-                            <span className="saas-lot-label-tiny">BRAND</span>
-                            <input className="saas-input-box" required placeholder="e.g. TATA" value={formData.brandName} onChange={e => setFormData({ ...formData, brandName: e.target.value })} />
-                        </div>
-                        <div style={{ width: '180px' }}>
-                            <span className="saas-lot-label-tiny">PRODUCT / ITEM NAME</span>
-                            <input className="saas-input-box" required placeholder="e.g. 10mm BRY" value={formData.productName} onChange={e => setFormData({ ...formData, productName: e.target.value })} />
-                        </div>
-                        {fields.map(f => (
-                            <div key={f.id} style={{ width: '140px' }}>
-                                <span className="saas-lot-label-tiny">{f.label.toUpperCase()}</span>
-                                <input className="saas-input-box" required={f.required} type={f.type} placeholder="..." value={dynamicData[f.id] || ''} onChange={e => setDynamicData({ ...dynamicData, [f.id]: e.target.value })} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
+                        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                            <div style={{ width: '220px' }}>
+                                <span className="saas-lot-label-tiny">VENDOR / SUPPLIER</span>
+                                <GenericAutocomplete 
+                                    placeholder="Search supplier..." 
+                                    fetchData={() => getSuppliers(currentCompanyId)} 
+                                    iconType="vendor"
+                                    value={formData.vendorName} onChange={v => setFormData({ ...formData, vendorName: v })}
+                                    onSelect={s => setFormData({ ...formData, vendorName: s.name })}
+                                />
                             </div>
-                        ))}
-                        <div style={{ marginLeft: 'auto' }}>
+                            <div style={{ width: '180px' }}>
+                                <span className="saas-lot-label-tiny">BRAND</span>
+                                <input className="saas-input-box" required placeholder="e.g. TATA" value={formData.brandName} onChange={e => setFormData({ ...formData, brandName: e.target.value })} />
+                            </div>
+                            {fields.map(f => (
+                                <div key={f.id} style={{ width: '140px' }}>
+                                    <span className="saas-lot-label-tiny">{f.label.toUpperCase()}</span>
+                                    <input className="saas-input-box" required={f.required} type={f.type} placeholder="..." value={dynamicData[f.id] || ''} onChange={e => setDynamicData({ ...dynamicData, [f.id]: e.target.value })} />
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {/* Products Section */}
+                        <div style={{ background: '#f8fafc', padding: '0.75rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                <span className="saas-lot-label-tiny">PRODUCTS / ITEMS</span>
+                                <button type="button" onClick={addProduct} className="btn btn-outline" style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem' }}>
+                                    + Add Product
+                                </button>
+                            </div>
+                            {products.map((product, idx) => (
+                                <div key={product.id} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 30px', gap: '0.5rem', marginBottom: idx < products.length - 1 ? '0.5rem' : '0', alignItems: 'center' }}>
+                                    <input 
+                                        className="saas-input-box" 
+                                        placeholder="e.g. TMT Bar" 
+                                        value={product.name} 
+                                        onChange={e => updateProduct(product.id, 'name', e.target.value)}
+                                    />
+                                    <input 
+                                        className="saas-input-box" 
+                                        placeholder="Size (e.g. 10mm)" 
+                                        value={product.size} 
+                                        onChange={e => updateProduct(product.id, 'size', e.target.value)}
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => removeProduct(product.id)}
+                                        disabled={products.length === 1}
+                                        style={{ 
+                                            background: 'none', 
+                                            border: 'none', 
+                                            cursor: products.length === 1 ? 'not-allowed' : 'pointer', 
+                                            color: products.length === 1 ? '#ccc' : '#ff4444',
+                                            padding: '0.2rem'
+                                        }}
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            ))}
+                            <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.3rem', display: 'grid', gridTemplateColumns: '2fr 1fr 30px', gap: '0.5rem' }}>
+                                <span>Product Name</span>
+                                <span>Size (Optional)</span>
+                                <span></span>
+                            </div>
+                        </div>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                             <button type="submit" className="btn btn-primary" disabled={saving} style={{ background: 'var(--color-accent-blue)', display: 'flex', gap: '0.4rem' }}>
                                 {editingId ? 'Update' : 'Add Entry'}
                             </button>
@@ -187,7 +263,19 @@ export default function BrandRegistryManager() {
                             <tr key={item.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                 <td style={{ padding: '0.75rem 1.5rem', fontWeight: 'bold' }}>{item.vendorName}</td>
                                 <td style={{ padding: '0.75rem 1.5rem' }}>{item.brandName}</td>
-                                <td style={{ padding: '0.75rem 1.5rem' }}>{item.productName || '—'}</td>
+                                <td style={{ padding: '0.75rem 1.5rem' }}>
+                                    {item.products && item.products.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                            {item.products.map((p, idx) => (
+                                                <span key={idx} style={{ fontSize: '0.8rem', color: '#475569' }}>
+                                                    • {p.name}{p.size ? ` (${p.size})` : ''}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span style={{ color: '#94a3b8' }}>{item.productName || '—'}</span>
+                                    )}
+                                </td>
                                 {fields.map(f => (
                                     <td key={f.id} style={{ padding: '0.75rem 1.5rem', color: '#64748b' }}>{item[f.id] || '—'}</td>
                                 ))}
@@ -198,7 +286,7 @@ export default function BrandRegistryManager() {
                             </tr>
                         ))}
                         {filteredRegistry.length === 0 && (
-                            <tr><td colSpan={fields.length + 3} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>No registry records found.</td></tr>
+                            <tr><td colSpan={fields.length + 4} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>No registry records found.</td></tr>
                         )}
                     </tbody>
                 </table>
