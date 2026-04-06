@@ -912,21 +912,21 @@ export default function AdminDashboard() {
                                     {orders.map(order => (
                                         <div key={order.id} style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', padding: 'var(--spacing-md)' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--spacing-sm)' }}>
-                                                <strong>Reference: {order.employeeReference}</strong>
-                                                <span style={{ color: 'var(--color-text-light)', fontSize: '0.9rem' }}>{new Date(order.createdAt).toLocaleString()}</span>
+                                                <strong>Order #{order.id?.slice(0, 8)}</strong>
+                                                <span style={{ color: 'var(--color-text-light)', fontSize: '0.9rem' }}>{new Date(order.created_at || order.createdAt).toLocaleString()}</span>
                                             </div>
                                             <div style={{ marginBottom: 'var(--spacing-sm)', fontSize: '0.9rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                                <div><strong>Name:</strong> {order.userName || 'N/A'}</div>
-                                                <div><strong>Email:</strong> {order.userEmail}</div>
-                                                <div><strong>Business:</strong> {order.businessName || 'N/A'}</div>
-                                                <div><strong>Location:</strong> {order.location || 'N/A'}</div>
+                                                <div><strong>Name:</strong> {order.customer_name || order.userName || 'N/A'}</div>
+                                                <div><strong>Phone:</strong> {order.customer_phone || 'N/A'}</div>
+                                                <div><strong>Email:</strong> {order.customer_email || order.userEmail || 'N/A'}</div>
+                                                <div><strong>Notes:</strong> {order.notes || 'N/A'}</div>
                                                 <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}><strong>Status:</strong> <span style={{ color: 'var(--color-accent-orange)', textTransform: 'uppercase', fontWeight: 'bold' }}>{order.status}</span></div>
                                             </div>
                                             <h5 style={{ marginTop: 'var(--spacing-sm)', marginBottom: '0.25rem', borderBottom: '1px solid var(--color-secondary)' }}>Items Requested:</h5>
                                             <ul style={{ paddingLeft: '1rem', listStyle: 'circle', fontSize: '0.9rem', color: 'var(--color-text-light)' }}>
                                                 {order.items?.map((item, idx) => (
                                                     <li key={idx} style={{ marginBottom: '0.25rem' }}>
-                                                        {item.quantity}x {item.name} ({item.dimensions})
+                                                        {item.quantity}x {item.name || item.product_name}{item.unit ? ` (${item.unit})` : ''}
                                                     </li>
                                                 ))}
                                             </ul>

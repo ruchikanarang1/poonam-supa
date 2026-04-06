@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { supabase } from './lib/supabase';
 import './App.css';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -20,6 +21,17 @@ import CustomerOrders from './pages/CustomerOrders';
 import CustomerPayments from './pages/CustomerPayments';
 import ManageCustomers from './pages/ManageCustomers';
 import { useAuth } from './contexts/AuthContext';
+
+// Handles OAuth redirect back into the ERP
+function AuthCallback() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    supabase.auth.getSession().then(() => {
+      navigate('/', { replace: true });
+    });
+  }, [navigate]);
+  return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#040d1a', color: 'white' }}>Signing you in...</div>;
+}
 
 // ── Full-screen layout for ERP (with navbar + sidebar) ──────────────────────
 function ERPShell() {
@@ -100,6 +112,8 @@ export default function App() {
       <Routes>
         {/* Public customer storefront — no auth, no sidebar */}
         <Route path="/store" element={<CustomerStore />} />
+        {/* OAuth callback */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
         {/* Everything else goes through auth guard */}
         <Route path="/*" element={<AppRouter />} />
       </Routes>

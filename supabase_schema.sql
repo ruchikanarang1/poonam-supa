@@ -342,3 +342,58 @@ alter table profiles add column if not exists status text not null default 'pend
 -- Make yourself superadmin + approved (replace with your actual email)
 -- update profiles set role = 'superadmin', status = 'approved' where email = 'you@gmail.com';
 
+
+
+-- ============================================================
+-- DELIVERY TRACKING ENHANCEMENTS
+-- ============================================================
+
+-- Task 1.1: Add booking_stations column to transports table
+ALTER TABLE transports ADD COLUMN IF NOT EXISTS booking_stations JSONB DEFAULT '[]'::jsonb;
+
+-- Task 1.2: Add delivery tracking columns to logistics_bills table
+ALTER TABLE logistics_bills ADD COLUMN IF NOT EXISTS booking_date DATE;
+ALTER TABLE logistics_bills ADD COLUMN IF NOT EXISTS booking_station TEXT;
+ALTER TABLE logistics_bills ADD COLUMN IF NOT EXISTS delivery_status TEXT;
+ALTER TABLE logistics_bills ADD COLUMN IF NOT EXISTS days_elapsed INTEGER;
+ALTER TABLE logistics_bills ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'resolved';
+
+-- Comment: booking_stations structure in transports table:
+-- [
+--   {
+--     "station_name": "Mumbai",
+--     "fare": 5000,
+--     "avg_delivery_days": 3
+--   },
+--   {
+--     "station_name": "Delhi",
+--     "fare": 8000,
+--     "avg_delivery_days": 5
+--   }
+-- ]
+
+
+-- ============================================================
+-- PRODUCT SIZE VARIANTS & DEAD STOCK MANAGEMENT
+-- ============================================================
+
+-- Add size_variants column to store detailed size information
+-- Structure: [{"size": "10mm", "weight": "5kg", "dimensions": "10x10x10"}]
+ALTER TABLE products ADD COLUMN IF NOT EXISTS size_variants JSONB DEFAULT '[]'::jsonb;
+
+-- Add dead stock flag
+ALTER TABLE products ADD COLUMN IF NOT EXISTS is_dead_stock BOOLEAN DEFAULT false;
+
+-- Comment: size_variants structure:
+-- [
+--   {
+--     "size": "10mm",
+--     "weight": "5kg/meter",
+--     "dimensions": "10x10x10"
+--   },
+--   {
+--     "size": "12mm",
+--     "weight": "7kg/meter",
+--     "dimensions": "12x12x12"
+--   }
+-- ]

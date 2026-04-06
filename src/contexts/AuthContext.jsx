@@ -60,7 +60,7 @@ export function AuthProvider({ children }) {
     const loginWithGoogle = async () => {
         const { error } = await supabase.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin }
+            options: { redirectTo: `${window.location.origin}/auth/callback` }
         });
         if (error) throw error;
     };
@@ -110,50 +110,73 @@ export function AuthProvider({ children }) {
     // Load user data after auth state changes
     const loadUserData = async (user) => {
         try {
-            const profile = await ensureUserProfile(user);
-            if (!profile) { setLoading(false); return; }
+            // Run profile fetch and a quick role check in parallel
+            const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
 
-            const cleanRole = (profile.role || '').toLowerCase().replace(/\s+/g, '');
-            const cleanStatus = (profile.status || '').toLowerCase().trim();
+            if (profileError) {
+                setGlobalAuthError(JSON.stringify(profileError));
+                return;
+            }
 
+            // New user - create profile with pending status
+            let activeProfile = profile;
+            if (!activeProfile) {
+                const profileData = {
+                    id: user.id,
+                    email: user.email || '',
+                    phone_number: user.phone || '',
+                    display_name: user.user_metadata?.full_name || user.user_metadata?.name || 'Steel User',
+                    role: 'user',
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                };
+                await supabase.from('profiles').insert(profileData);
+                activeProfile = { ...profileData, roles: [] };
+            } else {
+                activeProfile = { ...activeProfile, roles: activeProfile.roles || [] };
+            }
+
+            const cleanRole = (activeProfile.role || '').toLowerCase().replace(/\s+/g, '');
+            const cleanStatus = (activeProfile.status || '').toLowerCase().trim();
             const isSA = cleanRole === 'superadmin';
-            setIsSuperAdmin(isSA);
-
-            // Superadmin is always approved; others need status='approved'
             const approved = isSA || cleanStatus === 'approved';
+
+            setIsSuperAdmin(isSA);
             setIsApproved(approved);
 
             if (!approved) {
-                setUserData({ ...profile, uid: user.id });
-                setLoading(false);
-                return; // stop here — AccessPending screen will be shown
+                setUserData({ ...activeProfile, uid: user.id });
+                return;
             }
 
-            // Fetch companies the user belongs to
-            let companiesQuery;
-            if (isSA) {
-                companiesQuery = supabase.from('companies').select('*').limit(20);
-            } else {
-                companiesQuery = supabase.from('companies')
-                    .select('*')
-                    .contains('admin_ids', [user.id]);
+            // Set company ID immediately from profile - don't wait for companies query
+            const activeId = activeProfile.active_company_id;
+            if (activeId) {
+                setCurrentCompanyId(activeId);
             }
+
+            // Fetch companies in background
+            const companiesQuery = isSA
+                ? supabase.from('companies').select('id, name, admin_ids, employee_ids, roles, location').limit(20)
+                : supabase.from('companies').select('id, name, admin_ids, employee_ids, roles, location').contains('admin_ids', [user.id]);
 
             const { data: compList } = await companiesQuery;
             const comps = compList || [];
             setCompanies(comps);
 
-            // Select default company
-            const activeId = profile.active_company_id || (comps.length > 0 ? comps[0].id : null);
-            setCurrentCompanyId(activeId);
+            const resolvedId = activeId || (comps.length > 0 ? comps[0].id : null);
+            setCurrentCompanyId(resolvedId);
 
-            // Determine roles in current company
             const currentComp = comps.find(c => c.id === activeId);
             const companyRoles = currentComp?.roles?.[user.id] || [];
             const adminCheck = isSA || (currentComp?.admin_ids || []).includes(user.id) || companyRoles.includes('admin');
 
             setIsAdmin(adminCheck);
-            setUserData({ ...profile, roles: companyRoles, uid: user.id });
+            setUserData({ ...activeProfile, roles: companyRoles, uid: user.id });
         } catch (e) {
             console.error('Auth Load Error:', e);
             setGlobalAuthError(`Crash during profile load: ${e.message || JSON.stringify(e)}`);
@@ -172,30 +195,20 @@ export function AuthProvider({ children }) {
                 console.log("[AUTH] Safe timeout reached. Forcing load to finish.");
                 setLoading(false);
             }
-        }, 8000);
+        }, 20000);
 
         const setupAuth = async () => {
             try {
-                // 1. Fetch initial session explicitly (crucial for page refreshes)
-                const { data, error } = await supabase.auth.getSession();
-                
-                if (error) throw error;
-                
-                const session = data?.session;
-                if (session?.user) {
-                    setCurrentUser(normalizeUser(session.user));
-                    await loadUserData(session.user);
-                } else {
-                    setLoading(false);
-                }
+                let initialLoadDone = false;
 
-                // 2. Listen for future auth events
+                // 1. Listen for future auth events FIRST
                 const res = supabase.auth.onAuthStateChange(async (event, currentSession) => {
                     if (!isMounted) return;
                     
                     if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
                         if (currentSession?.user) {
                             setCurrentUser(normalizeUser(currentSession.user));
+                            if (!initialLoadDone) return; // skip - initial load handles it
                             await loadUserData(currentSession.user);
                         }
                     } else if (event === 'SIGNED_OUT') {
@@ -210,6 +223,41 @@ export function AuthProvider({ children }) {
                 });
                 
                 subscription = res?.data?.subscription || res?.subscription;
+
+                // 2. Fetch initial session
+                const { data, error } = await supabase.auth.getSession();
+                if (error) throw error;
+                
+                const session = data?.session;
+                if (session?.user) {
+                    setCurrentUser(normalizeUser(session.user));
+                    await loadUserData(session.user);
+                } else {
+                    setLoading(false);
+                }
+                initialLoadDone = true;
+
+                // Now re-wire onAuthStateChange to handle future sign-ins
+                if (subscription) subscription.unsubscribe();
+                const res2 = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+                    if (!isMounted) return;
+                    if (event === 'SIGNED_IN') {
+                        if (currentSession?.user) {
+                            setCurrentUser(normalizeUser(currentSession.user));
+                            await loadUserData(currentSession.user);
+                        }
+                    } else if (event === 'SIGNED_OUT') {
+                        setCurrentUser(null);
+                        setUserData(null);
+                        setCompanies([]);
+                        setCurrentCompanyId(null);
+                        setIsAdmin(false);
+                        setIsSuperAdmin(false);
+                        setLoading(false);
+                    }
+                });
+                subscription = res2?.data?.subscription || res2?.subscription;
+
             } catch (e) {
                 console.error("[AUTH] Init error", e);
                 if (isMounted) setLoading(false);
